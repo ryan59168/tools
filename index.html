@@ -32,7 +32,6 @@
 
     <main class="flex-1 flex overflow-hidden">
         <aside class="w-80 bg-slate-800 border-r border-slate-700 flex flex-col p-4 overflow-y-auto custom-scrollbar">
-            <!-- 檔案資訊區塊 -->
             <section class="mb-4">
                 <h2 class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">檔案名稱</h2>
                 <div class="bg-slate-900 px-2 py-1.5 rounded border border-slate-700">
@@ -138,6 +137,7 @@
         let isDragging = false;
         let lastMousePos = { x: 0, y: 0 };
         let lastPixelCoords = { x: 0, y: 0 };
+        let lastMarkerPos = null; // 儲存標記的原始像素位置 {x, y}
         let showCenterCross = false;
 
         let rawGimbalData = { pitch: null, roll: null, yaw: null };
@@ -163,6 +163,10 @@
 
         async function processFile(file) {
             fileNameDisplay.innerText = file.name;
+            lastMarkerPos = null; // 更換檔案時清除標記
+            lastPixelCoords = { x: 0, y: 0 };
+            document.getElementById('pixel-display').innerText = `X: -, Y: -`;
+
             try {
                 const tags = await ExifReader.load(file, { expanded: true });
                 parseUavData(tags);
@@ -229,6 +233,32 @@
             const currentImgHeight = img.height * scale;
             ctx.drawImage(img, 0, 0, img.width, img.height, originX, originY, currentImgWidth, currentImgHeight);
             
+            // 繪製標記點
+            if (lastMarkerPos) {
+                const markerX = originX + lastMarkerPos.x * scale;
+                const markerY = originY + lastMarkerPos.y * scale;
+
+                // 外部發光圈
+                ctx.beginPath();
+                ctx.arc(markerX, markerY, 8, 0, Math.PI * 2);
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // 內部紅圈
+                ctx.beginPath();
+                ctx.arc(markerX, markerY, 8, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // 中心點
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(markerX, markerY, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
             if (showCenterCross) {
                 const centerX = originX + currentImgWidth / 2;
                 const centerY = originY + currentImgHeight / 2;
@@ -310,16 +340,12 @@
             }
             
             const name = fileNameDisplay.innerText;
-            // 格式修正：TWD97 改為 "X, Y"
             const twd = rawTwd97.x ? `${rawTwd97.x}, ${rawTwd97.y}` : "-\n-";
             const h = rawEllipsoidAlt || "-";
             const relH = rawRelAlt || "-";
-            // 格式修正：雲台姿態改為 "Pitch, Roll, Yaw"
             const gimbal = rawGimbalData.pitch !== null ? `${rawGimbalData.pitch}, ${rawGimbalData.roll}, ${rawGimbalData.yaw}` : "-\n-\n-";
-            // 格式修正：像素改為 "X, Y"
             const pixel = lastPixelCoords.x !== 0 ? `${lastPixelCoords.x}, ${lastPixelCoords.y}` : "-\n-";
 
-            // 純數據組合
             const allData = `${name}\n${twd}\n${h}\n${relH}\n${gimbal}\n${pixel}`;
             copyToClipboard(allData, copyAllBtn);
         });
@@ -358,11 +384,15 @@
             const imgY = Math.round((e.clientY - rect.top - originY) / scale);
             if (imgX >= 0 && imgX <= img.width && imgY >= 0 && imgY <= img.height) {
                 lastPixelCoords = { x: imgX, y: imgY };
+                lastMarkerPos = { x: imgX, y: imgY }; // 設置新標記點，覆蓋上一點
                 document.getElementById('pixel-display').innerText = `X: ${imgX}, Y: ${imgY}`;
+                render();
             }
         });
 
-        window.addEventListener('resize', render);
+        window.addEventListener('resize', () => {
+            if (img.src) render();
+        });
     </script>
 </body>
 </html>
