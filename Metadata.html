@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJI M3E 照片航線與元數據地圖平台</title>
+    <!-- 引入 Tailwind CSS (v4) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- 引入 Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- 引入 Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* 解決 Leaflet 地圖在容器內可能溢出的問題 */
+        .leaflet-container {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- 拖曳檔案覆蓋提示框 -->
+    <div id="dropOverlay" class="fixed inset-0 bg-blue-600/90 z-[9999] flex flex-col items-center justify-center pointer-events-none opacity-0 transition-all duration-200 scale-95">
+        <div class="text-white text-center p-8 border-4 border-dashed border-white/60 rounded-2xl max-w-md bg-slate-950/40 backdrop-blur-sm shadow-2xl">
+            <span class="text-6xl mb-4 block animate-bounce">📥</span>
+            <h3 class="text-2xl font-bold mb-2">放開以開始解析照片</h3>
+            <p class="text-white/80 text-sm">支援單張/多張 JPEG 照片，或直接拖曳整組資料夾！</p>
+        </div>
+    </div>
+
+    <!-- 頂部導航欄 -->
+    <header class="bg-slate-950 border-b border-slate-800 py-4 px-6 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 p-2 rounded-lg text-white font-bold text-lg tracking-wider">DJI</div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide text-white">M3E 航拍元數據 GIS 地圖平台</h1>
+                    <p class="text-xs text-slate-400">本地高效 XMP 數據解析與三維姿態點繪製</p>
+                </div>
+            </div>
+            <!-- 控制區 -->
+            <div class="flex flex-wrap items-center gap-3">
+                <label class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer transition shadow-md hover:shadow-blue-500/20">
+                    📂 單張 / 多張相片
+                    <input type="file" id="fileInput" accept=".jpg,.jpeg" multiple class="hidden" />
+                </label>
+                <label class="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg cursor-pointer transition shadow-md hover:shadow-emerald-500/20">
+                    📁 整個資料夾
+                    <input type="file" id="folderInput" accept=".jpg,.jpeg" webkitdirectory directory multiple class="hidden" />
+                </label>
+                <button id="exportBtn" class="bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shadow-md" disabled>
+                    📥 匯出 CSV
+                </button>
+                <button id="clearBtn" class="bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition shadow-md">
+                    🧹 清空
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容區：上層地圖、下層表格的響應式網格 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- 左側：地圖展示區 (佔 8 欄) -->
+        <section class="lg:col-span-8 flex flex-col bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl min-h-[450px] lg:min-h-[550px]">
+            <div class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex justify-between items-center">
+                <span class="font-semibold text-slate-200 flex items-center gap-2">
+                    <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span> 航線軌跡地圖 (Leaflet)
+                </span>
+                <span id="mapStats" class="text-xs text-slate-400">等待載入相片...</span>
+            </div>
+            <!-- Leaflet 地圖容器 -->
+            <div id="map" class="flex-1 w-full bg-slate-900"></div>
+        </section>
+
+        <!-- 右側：上傳狀態與分析統計面板 (佔 4 欄) -->
+        <section class="lg:col-span-4 flex flex-col gap-4">
+            <!-- 自訂消息/警告提示框 -->
+            <div id="alertBox" class="hidden p-4 rounded-xl text-sm font-medium border transition-all duration-300">
+                <p id="alertMsg"></p>
+            </div>
+
+            <!-- 任務進度與即時統計 -->
+            <div class="bg-slate-950 border border-slate-800 p-5 rounded-xl shadow-xl flex-1 flex flex-col justify-between">
+                <div>
+                    <h3 class="text-lg font-semibold text-white mb-4 border-b border-slate-800 pb-2">解析狀態與指標</h3>
+                    
+                    <!-- 進度指示器 -->
+                    <div id="statusBox" class="hidden mb-6 bg-slate-900 border border-slate-800 rounded-lg p-3">
+                        <div class="flex justify-between text-xs text-slate-300 mb-1">
+                            <span>正在解析 XMP 封包...</span>
+                            <span id="progressText" class="font-bold text-blue-400">0/0</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-2">
+                            <div id="progressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-150" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 數據指標卡 -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-slate-900 border border-slate-800/80 rounded-lg p-3 text-center">
+                            <div class="text-xs text-slate-400">導入照片總數</div>
+                            <div id="statTotal" class="text-2xl font-bold text-white mt-1">0</div>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800/80 rounded-lg p-3 text-center">
+                            <div class="text-xs text-slate-400">具備 GPS 定位</div>
+                            <div id="statGps" class="text-2xl font-bold text-blue-400 mt-1">0</div>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800/80 rounded-lg p-3 text-center">
+                            <div class="text-xs text-slate-400">平均相對高度</div>
+                            <div id="statAvgRelAlt" class="text-lg font-bold text-emerald-400 mt-1">-- m</div>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800/80 rounded-lg p-3 text-center">
+                            <div class="text-xs text-slate-400">無 GPS 照片</div>
+                            <div id="statNoGps" class="text-lg font-bold text-rose-400 mt-1">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-xs text-slate-500 bg-slate-900/50 p-3 rounded border border-slate-800/40">
+                    <p class="font-semibold mb-1">💡 操作指南：</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>可以直接將照片或整個資料夾拖曳到網頁任何角落進行匯入。</li>
+                        <li>可點選地圖右上方切換標準彩色地圖或高解析度衛星圖。</li>
+                        <li>點擊地圖上的定位點可顯示俯仰 (Pitch) 與偏航 (Yaw) 角。</li>
+                        <li>點擊下方表格內的「定位」可自動追蹤地標。</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 下方：詳細數據表格列表 (佔滿 12 欄) -->
+        <section class="lg:col-span-12 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
+            <div class="bg-slate-900 px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div class="flex items-center space-x-2">
+                    <span class="font-semibold text-slate-200">📊 詳細元數據列表</span>
+                    <span id="tableCountBadge" class="bg-slate-800 text-slate-300 text-xs px-2.5 py-0.5 rounded-full font-semibold">0 張</span>
+                </div>
+                <!-- 搜尋過濾器 -->
+                <input type="text" id="searchInput" placeholder="搜尋相片檔名..." class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 w-full sm:w-64 transition">
+            </div>
+
+            <div class="overflow-x-auto max-h-[400px]">
+                <table class="min-w-full divide-y divide-slate-800 text-xs text-slate-300">
+                    <thead class="bg-slate-900 font-semibold text-slate-400 sticky top-0 z-10 shadow">
+                        <tr>
+                            <th class="px-6 py-3 text-left">定位</th>
+                            <th class="px-6 py-3 text-left">相片名稱</th>
+                            <th class="px-6 py-3 text-left">緯度 (Latitude)</th>
+                            <th class="px-6 py-3 text-left">經度 (Longitude)</th>
+                            <th class="px-6 py-3 text-left">橢球高 (AbsAlt)</th>
+                            <th class="px-6 py-3 text-left">相對高度 (RelAlt)</th>
+                            <th class="px-6 py-3 text-left">橫滾角 (Roll)</th>
+                            <th class="px-6 py-3 text-left">偏航角 (Yaw)</th>
+                            <th class="px-6 py-3 text-left">俯仰角 (Pitch)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultTable" class="divide-y divide-slate-850 bg-slate-950/40">
+                        <tr>
+                            <td colspan="9" class="px-6 py-12 text-center text-slate-500 text-sm">
+                                <span class="block text-2xl mb-2">📷</span> 尚未匯入任何航拍資料，請點選上方按鈕開始解析
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-slate-950 border-t border-slate-800 py-4 text-center text-xs text-slate-500 mt-auto">
+        <p>© DJI M3E Metadata Viewer. 純前端本機沙盒運行，100% 確保相片與個資不外洩。</p>
+    </footer>
+
+    <!-- JS Logic -->
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
+        const resultTable = document.getElementById('resultTable');
+        const exportBtn = document.getElementById('exportBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statusBox = document.getElementById('statusBox');
+        const progressText = document.getElementById('progressText');
+        const progressBar = document.getElementById('progressBar');
+        const searchInput = document.getElementById('searchInput');
+        const tableCountBadge = document.getElementById('tableCountBadge');
+        const dropOverlay = document.getElementById('dropOverlay');
+
+        // 統計指標
+        const statTotal = document.getElementById('statTotal');
+        const statGps = document.getElementById('statGps');
+        const statAvgRelAlt = document.getElementById('statAvgRelAlt');
+        const statNoGps = document.getElementById('statNoGps');
+
+        // 資料模型 state
+        let allData = [];
+        let markersMap = {}; // 用於將資料項目對應到地圖上的 Marker 物件，方便雙向追蹤
+
+        // 解決 Leaflet 預設 Icon 因為 CDN 相對路徑出錯的問題
+        delete L.Icon.Default.prototype._getIconUrl;
+        L.Icon.Default.mergeOptions({
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        });
+
+        // 初始化 Leaflet 地圖 (預設焦點放在台灣本島中心，若使用者有上傳則會自動縮放定位)
+        const map = L.map('map').setView([23.973875, 120.982024], 7);
+        
+        // 定義標準彩色底圖 (OpenStreetMap)
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        });
+
+        // 定義衛星影像底圖 (Esri Satellite)
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+            maxZoom: 19
+        });
+
+        // 預設載入標準彩色底圖
+        osmLayer.addTo(map);
+
+        // 圖層控制項：方便在標準彩色與衛星地圖之間自由切換
+        const baseMaps = {
+            "🎨 標準彩色地圖": osmLayer,
+            "🛰️ 衛星影像圖": satelliteLayer
+        };
+        L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+        // 建立一個 Leaflet FeatureGroup 來群組管理標記點
+        const markersGroup = L.featureGroup().addTo(map);
+
+        // 綁定控制項事件
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        folderInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        clearBtn.addEventListener('click', clearAll);
+        exportBtn.addEventListener('click', exportToCSV);
+        searchInput.addEventListener('input', handleSearch);
+
+        // 拖曳上傳事件處理
+        let dragCounter = 0; // 避免子元素引起的 dragleave 閃爍問題
+
+        window.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            dropOverlay.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+            dropOverlay.classList.add('opacity-100', 'scale-100');
+        });
+
+        window.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        window.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter === 0) {
+                hideDropOverlay();
+            }
+        });
+
+        window.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            hideDropOverlay();
+
+            const items = e.dataTransfer.items;
+            if (!items) return;
+
+            statusBox.classList.remove('hidden');
+            progressText.innerText = "正在掃描拖曳的檔案與資料夾...";
+            progressBar.style.width = "10%";
+
+            const filePromises = [];
+            for (let i = 0; i < items.length; i++) {
+                const entry = items[i].webkitGetAsEntry();
+                if (entry) {
+                    filePromises.push(traverseFileTree(entry));
+                }
+            }
+
+            const filesArray = await Promise.all(filePromises);
+            // 攤平陣列並只篩選出照片
+            const droppedFiles = filesArray.flat().filter(file => 
+                file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')
+            );
+
+            if (droppedFiles.length > 0) {
+                handleFiles(droppedFiles);
+            } else {
+                statusBox.classList.add('hidden');
+                showAlert('沒有偵測到任何有效的 JPG/JPEG 照片檔案！', 'error');
+            }
+        });
+
+        function hideDropOverlay() {
+            dropOverlay.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+            dropOverlay.classList.remove('opacity-100', 'scale-100');
+        }
+
+        // 遞迴遍歷資料夾樹狀結構，將所有檔案取出
+        function traverseFileTree(item) {
+            return new Promise((resolve) => {
+                if (item.isFile) {
+                    item.file((file) => {
+                        resolve([file]);
+                    });
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader();
+                    const allEntries = [];
+                    
+                    const readEntries = () => {
+                        dirReader.readEntries(async (entries) => {
+                            if (entries.length === 0) {
+                                const filesPromises = allEntries.map(entry => traverseFileTree(entry));
+                                const subFiles = await Promise.all(filesPromises);
+                                resolve(subFiles.flat());
+                            } else {
+                                allEntries.push(...entries);
+                                readEntries(); // 遞迴讀取其餘條目，防範 100 筆上限限制
+                            }
+                        });
+                    };
+                    readEntries();
+                } else {
+                    resolve([]);
+                }
+            });
+        }
+
+        // 純前端快速 XMP 解析 (只讀取前 500KB，避免大檔案引起記憶體溢出)
+        function parseDjiMetadata(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                const blob = file.slice(0, 500 * 1024); // 500KB Slice
+                
+                reader.onload = function(e) {
+                    const text = e.target.result;
+                    
+                    // 針對 DJI M3E 的 XMP 命名空間進行靈活的正則擷取
+                    const extract = (tag) => {
+                        const regex = new RegExp(`(?:drone-)?dji:${tag}=\\s*"([^"]+)"`, 'i');
+                        const match = text.match(regex);
+                        return match ? match[1] : 'N/A';
+                    };
+
+                    resolve({
+                        id: 'photo_' + Math.random().toString(36).substr(2, 9), // 唯一識別碼
+                        name: file.name,
+                        lat: extract('GpsLatitude'),
+                        lon: extract('GpsLongitude'),
+                        absAlt: extract('AbsoluteAltitude'),
+                        relAlt: extract('RelativeAltitude'),
+                        roll: extract('GimbalRollDegree'),
+                        yaw: extract('GimbalYawDegree'),
+                        pitch: extract('GimbalPitchDegree')
+                    });
+                };
+                
+                reader.readAsText(blob, 'UTF-8');
+            });
+        }
+
+        // 處理並過濾相片
+        async function handleFiles(files) {
+            const jpgFiles = Array.from(files).filter(file => 
+                file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')
+            );
+
+            if (jpgFiles.length === 0) {
+                showAlert('沒有找到任何 JPG/JPEG 格式照片！', 'error');
+                return;
+            }
+
+            statusBox.classList.remove('hidden');
+            let count = 0;
+            const total = jpgFiles.length;
+
+            for (const file of jpgFiles) {
+                count++;
+                progressText.innerText = `${count} / ${total}`;
+                progressBar.style.width = `${(count / total) * 100}%`;
+                
+                try {
+                    const metadata = await parseDjiMetadata(file);
+                    allData.push(metadata);
+                } catch (error) {
+                    console.error(`解析 ${file.name} 失敗:`, error);
+                }
+            }
+
+            statusBox.classList.add('hidden');
+            showAlert(`成功解析 ${total} 張相片元數據！`, 'success');
+            
+            // 重新繪製地圖與更新表格
+            updateDashboard();
+        }
+
+        // 更新地圖標記 (清除舊點並重繪)
+        function updateMapMarkers() {
+            markersGroup.clearLayers();
+            markersMap = {}; // 清空映射
+
+            let validGpsCount = 0;
+
+            allData.forEach(d => {
+                const latVal = parseFloat(d.lat);
+                const lonVal = parseFloat(d.lon);
+
+                // 只有在具備有效經緯度時，才在地圖標記
+                if (!isNaN(latVal) && !isNaN(lonVal)) {
+                    validGpsCount++;
+
+                    // 建立彈出視窗樣式
+                    const popupContent = `
+                        <div class="text-slate-800 p-1 font-sans text-xs min-w-[200px]">
+                            <h4 class="font-bold text-sm text-blue-600 border-b border-gray-200 pb-1.5 mb-2 flex items-center gap-1">
+                                📷 ${d.name}
+                            </h4>
+                            <div class="space-y-1.5">
+                                <p><span class="font-semibold text-gray-500">經緯座標:</span> ${latVal.toFixed(7)}, ${lonVal.toFixed(7)}</p>
+                                <p><span class="font-semibold text-gray-500">橢球高:</span> <span class="text-blue-600 font-bold">${d.absAlt} m</span></p>
+                                <p><span class="font-semibold text-gray-500">相對高度:</span> <span class="text-emerald-600 font-bold">${d.relAlt} m</span></p>
+                                <p class="border-t border-gray-100 pt-1.5 mt-1.5 flex justify-between">
+                                    <span><b>Pitch:</b> ${d.pitch}°</span>
+                                    <span><b>Yaw:</b> ${d.yaw}°</span>
+                                    <span><b>Roll:</b> ${d.roll}°</span>
+                                </p>
+                            </div>
+                        </div>
+                    `;
+
+                    // 繪製航點 Marker
+                    const marker = L.marker([latVal, lonVal])
+                        .bindPopup(popupContent, { maxWidth: 260 });
+
+                    // 將 Marker 加入群組
+                    markersGroup.addLayer(marker);
+
+                    // 儲存此 Marker 到對照表
+                    markersMap[d.id] = marker;
+                }
+            });
+
+            // 調整地圖範圍使所有航拍點完美入鏡 (Auto-fit Bounds)
+            if (validGpsCount > 0) {
+                map.fitBounds(markersGroup.getBounds(), { padding: [40, 40] });
+                document.getElementById('mapStats').innerText = `已繪製 ${validGpsCount} 個航拍位置點`;
+            } else {
+                document.getElementById('mapStats').innerText = `無具備經緯度的點可供繪製`;
+            }
+        }
+
+        // 單獨將地圖飛越 (FlyTo) 至指定點並打開 Popup
+        window.focusOnPhoto = function(id, lat, lon) {
+            const marker = markersMap[id];
+            if (marker && !isNaN(lat) && !isNaN(lon)) {
+                map.flyTo([lat, lon], 17, {
+                    animate: true,
+                    duration: 1.2
+                });
+                marker.openPopup();
+                
+                // 平滑滾動到地圖頂部（適合手機版用戶）
+                document.getElementById('map').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                showToastMessage('此相片無有效 GPS 定位，無法在地圖上追蹤。', 'error');
+            }
+        };
+
+        // 渲染表格內容
+        function renderTable(dataToRender = allData) {
+            tableCountBadge.innerText = `${dataToRender.length} 張`;
+
+            if (dataToRender.length === 0) {
+                resultTable.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-slate-500 text-sm">
+                            沒有符合搜尋條件的航拍資料。
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            resultTable.innerHTML = dataToRender.map(d => {
+                const latVal = parseFloat(d.lat);
+                const lonVal = parseFloat(d.lon);
+                const hasGps = !isNaN(latVal) && !isNaN(lonVal);
+
+                return `
+                    <tr class="hover:bg-slate-900/60 transition group">
+                        <td class="px-6 py-3">
+                            ${hasGps 
+                                ? `<button onclick="focusOnPhoto('${d.id}', ${latVal}, ${lonVal})" class="bg-blue-600/30 text-blue-400 group-hover:bg-blue-600 group-hover:text-white text-[10px] font-bold px-2 py-1 rounded transition flex items-center gap-1 cursor-pointer">📍 追蹤</button>`
+                                : `<span class="text-rose-500/80 text-[10px] font-semibold bg-rose-500/10 px-2 py-1 rounded">無 GPS</span>`
+                            }
+                        </td>
+                        <td class="px-6 py-3 font-medium text-slate-200 break-all">${d.name}</td>
+                        <td class="px-6 py-3">${d.lat}</td>
+                        <td class="px-6 py-3">${d.lon}</td>
+                        <td class="px-6 py-3 text-blue-400 font-semibold">${d.absAlt !== 'N/A' ? d.absAlt + ' m' : 'N/A'}</td>
+                        <td class="px-6 py-3 text-emerald-400 font-semibold">${d.relAlt !== 'N/A' ? d.relAlt + ' m' : 'N/A'}</td>
+                        <td class="px-6 py-3 text-slate-400">${d.roll !== 'N/A' ? d.roll + '°' : 'N/A'}</td>
+                        <td class="px-6 py-3 text-slate-400">${d.yaw !== 'N/A' ? d.yaw + '°' : 'N/A'}</td>
+                        <td class="px-6 py-3 text-slate-400">${d.pitch !== 'N/A' ? d.pitch + '°' : 'N/A'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 搜尋過濾功能
+        function handleSearch() {
+            const query = searchInput.value.toLowerCase().trim();
+            const filteredData = allData.filter(d => d.name.toLowerCase().includes(query));
+            renderTable(filteredData);
+        }
+
+        // 彙整並計算儀表板上的指標
+        function updateDashboard() {
+            statTotal.innerText = allData.length;
+
+            let gpsCount = 0;
+            let noGpsCount = 0;
+            let sumRelAlt = 0;
+            let validRelAltCount = 0;
+
+            allData.forEach(d => {
+                const latVal = parseFloat(d.lat);
+                const lonVal = parseFloat(d.lon);
+                if (!isNaN(latVal) && !isNaN(lonVal)) {
+                    gpsCount++;
+                } else {
+                    noGpsCount++;
+                }
+
+                const relAltVal = parseFloat(d.relAlt);
+                if (!isNaN(relAltVal)) {
+                    sumRelAlt += relAltVal;
+                    validRelAltCount++;
+                }
+            });
+
+            statGps.innerText = gpsCount;
+            statNoGps.innerText = noGpsCount;
+            
+            if (validRelAltCount > 0) {
+                const avg = sumRelAlt / validRelAltCount;
+                statAvgRelAlt.innerText = `${avg.toFixed(2)} m`;
+            } else {
+                statAvgRelAlt.innerText = '-- m';
+            }
+
+            // 更新地圖標點與表格
+            updateMapMarkers();
+            renderTable();
+            exportBtn.disabled = allData.length === 0;
+        }
+
+        // 自訂非阻塞式提示控制
+        function showAlert(msg, type = 'success') {
+            const alertBox = document.getElementById('alertBox');
+            const alertMsg = document.getElementById('alertMsg');
+            
+            alertBox.className = "p-4 rounded-xl text-sm font-medium border transition-all duration-300";
+            alertMsg.innerText = msg;
+            
+            if (type === 'success') {
+                alertBox.classList.add('bg-emerald-950/80', 'border-emerald-800', 'text-emerald-400');
+            } else {
+                alertBox.classList.add('bg-rose-950/80', 'border-rose-800', 'text-rose-400');
+            }
+            
+            alertBox.classList.remove('hidden');
+            setTimeout(() => {
+                alertBox.classList.add('hidden');
+            }, 5000);
+        }
+
+        //Toast 簡易提示
+        function showToastMessage(msg, type = 'error') {
+            showAlert(msg, type);
+        }
+
+        // 清空所有數據與地圖
+        function clearAll() {
+            allData = [];
+            markersMap = {};
+            markersGroup.clearLayers();
+            map.setView([23.973875, 120.982024], 7);
+            
+            updateDashboard();
+            
+            fileInput.value = '';
+            folderInput.value = '';
+            searchInput.value = '';
+            document.getElementById('mapStats').innerText = `等待載入相片...`;
+            showAlert('數據已全部清空。', 'success');
+        }
+
+        // 匯出 CSV，加入 Excel 專用 UTF-8 BOM
+        function exportToCSV() {
+            if (allData.length === 0) return;
+
+            let csvContent = "\uFEFF相片名稱,緯度(Latitude),經度(Longitude),橢球高(AbsoluteAltitude),相對高度(RelativeAltitude),橫滾角(GimbalRoll),偏航角(GimbalYaw),俯仰角(GimbalPitch)\n";
+            
+            allData.forEach(d => {
+                csvContent += `"${d.name}",${d.lat},${d.lon},${d.absAlt},${d.relAlt},${d.roll},${d.yaw},${d.pitch}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", `DJI_Photo_Metadata_${new Date().toISOString().slice(0,10)}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
