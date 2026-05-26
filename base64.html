@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影像 ⇄ Base64 雙向轉換工具</title>
+    <!-- 使用 Tailwind CSS 打造現代化美觀介面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 隱藏捲軸但保持滾動功能（自訂美化） */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 flex flex-col justify-between">
+
+    <!-- 主體內容 -->
+    <div class="max-w-7xl mx-auto px-4 py-8 w-full">
+        <!-- 標頭 -->
+        <header class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full mb-3 border border-indigo-100">
+                ⚡️ 100% 本地處理 ‧ 安全無虞
+            </div>
+            <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">影像 ⇄ Base64 轉換器</h1>
+            <p class="text-slate-500 mt-2 text-sm md:text-base max-w-md mx-auto">
+                無需上傳伺服器，直接在瀏覽器進行影像與 Base64 編碼的雙向即時轉換。
+            </p>
+        </header>
+
+        <!-- 主要功能區 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+            
+            <!-- 左側：影像 ➔ Base64 (全新升級：左右並排佈局 + 雙複製功能) -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <!-- 標題與標籤 -->
+                    <div class="flex items-center justify-between mb-5">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="flex items-center justify-center w-7 h-7 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-semibold">1</span>
+                            影像 ➔ Base64
+                        </h2>
+                        <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">編碼 (Encode)</span>
+                    </div>
+                    
+                    <!-- 拖曳與選擇上傳區域 -->
+                    <div id="dropZone" class="border-2 border-dashed border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/20 transition-all duration-200 rounded-xl p-8 text-center cursor-pointer relative group">
+                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer z-10">
+                        <div class="space-y-3">
+                            <div class="mx-auto w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
+                                <svg class="h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-slate-700">
+                                    <span class="text-indigo-600 hover:text-indigo-700 font-semibold">點擊上傳</span> 或將檔案拖曳至此處
+                                </p>
+                                <p class="text-xs text-slate-400 mt-1">支援 PNG, JPG, WEBP, GIF, SVG 等</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 轉換後的並排顯示區 -->
+                    <div id="convertResultSection" class="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 hidden">
+                        <!-- 預覽與詳細資訊 (佔比 5/12) -->
+                        <div class="md:col-span-5 flex flex-col space-y-4">
+                            <h3 class="text-sm font-bold text-slate-700">圖片預覽</h3>
+                            <div class="border border-slate-100 rounded-xl p-3 bg-slate-50 flex justify-center items-center h-52 overflow-hidden shadow-inner">
+                                <img id="imgPreview" class="max-h-48 max-w-full object-contain rounded" src="" alt="上傳圖片預覽">
+                            </div>
+                            
+                            <!-- 獨立的詳細資訊列表 -->
+                            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100 text-xs space-y-2 font-medium text-slate-600">
+                                <div class="flex justify-between border-b border-slate-200/60 pb-1.5">
+                                    <span class="text-slate-400">檔名：</span>
+                                    <span id="infoName" class="font-semibold text-slate-800 break-all text-right max-w-[150px]">--</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-200/60 pb-1.5">
+                                    <span class="text-slate-400">大小：</span>
+                                    <span id="infoSize" class="font-semibold text-slate-800">--</span>
+                                </div>
+                                <div class="flex justify-between border-b border-slate-200/60 pb-1.5">
+                                    <span class="text-slate-400">類型：</span>
+                                    <span id="infoType" class="font-semibold text-slate-800">--</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-slate-400">解析度：</span>
+                                    <span id="infoResolution" class="font-semibold text-slate-800">--</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Base64 結果文字框 (佔比 7/12) -->
+                        <div class="md:col-span-7 flex flex-col justify-between">
+                            <div>
+                                <!-- 改進排版容器：在小螢幕時自動調整，並增加換行彈性，防止按鈕被擠壓 -->
+                                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-2">
+                                    <h3 class="text-sm font-bold text-slate-700">Base64 結果</h3>
+                                    <!-- 複製按鈕組：增加 flex-wrap 並採用強制不換行 whitespace-nowrap -->
+                                    <div class="flex gap-2 flex-wrap sm:flex-nowrap">
+                                        <button id="copyAllBtn" class="px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-medium rounded-lg text-xs transition-all duration-150 flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                                            複製全文
+                                        </button>
+                                        <button id="copyHtmlBtn" class="px-3 py-1.5 bg-white border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-medium rounded-lg text-xs transition-all duration-150 flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                                            複製 HTML &lt;img&gt;
+                                        </button>
+                                    </div>
+                                </div>
+                                <textarea id="base64Output" readonly class="w-full h-[225px] p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none" placeholder="Base64 程式碼將在此處產生..."></textarea>
+                            </div>
+                            
+                            <!-- 底部字元數與估算大小 -->
+                            <div class="flex justify-between items-center text-xs text-slate-400 font-medium mt-3">
+                                <div>字元數：<span id="charCount" class="font-mono text-slate-600">0</span></div>
+                                <div>估算大小：<span id="estimatedSize" class="font-mono text-slate-600">--</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 右側：Base64 ➔ 影像 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                <div>
+                    <!-- 標題與標籤 -->
+                    <div class="flex items-center justify-between mb-5">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span class="flex items-center justify-center w-7 h-7 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-semibold">2</span>
+                            Base64 ➔ 影像
+                        </h2>
+                        <span class="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded">解碼 (Decode)</span>
+                    </div>
+
+                    <!-- Base64 輸入文字框 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label for="base64Input" class="block text-xs font-semibold text-slate-500">請貼上 Base64 程式碼：</label>
+                            <button id="clearInputBtn" class="text-xs text-red-500 hover:text-red-600 font-medium hidden">清空</button>
+                        </div>
+                        <textarea id="base64Input" class="w-full h-44 p-3 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none transition-all" placeholder="貼上包含 data:image/... 的 DataURL 字串，或是純 Base64 程式碼..."></textarea>
+                    </div>
+
+                    <!-- 解析後的影像預覽區 -->
+                    <div id="base64PreviewContainer" class="mt-4 hidden space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-semibold text-slate-500">解析成功！預覽圖：</span>
+                            <span id="resolvedInfo" class="text-[11px] text-slate-400 font-mono"></span>
+                        </div>
+                        <div class="border border-slate-100 rounded-xl p-2 bg-slate-50 flex justify-center items-center h-44 overflow-hidden">
+                            <img id="base64Preview" class="max-h-40 max-w-full object-contain rounded shadow-sm" src="" alt="Base64 解析預覽">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 格式選擇與下載 -->
+                <div class="mt-6 pt-4 border-t border-slate-100">
+                    <div class="flex gap-3 mb-4">
+                        <div class="flex-1">
+                            <label for="formatSelect" class="block text-xs font-semibold text-slate-500 mb-1.5">轉換為以下格式下載：</label>
+                            <select id="formatSelect" class="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                                <option value="image/png">PNG (.png) - 支援透明背景</option>
+                                <option value="image/jpeg">JPG (.jpg) - 高壓縮、自動填白底</option>
+                                <option value="image/webp">WEBP (.webp) - 次世代高效格式</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button id="downloadBtn" disabled class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 text-white font-medium rounded-xl shadow-sm hover:shadow transition-all duration-200 text-sm flex justify-center items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        下載轉換後的影像檔案
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 頁尾 -->
+    <footer class="text-center py-6 text-xs text-slate-400 border-t border-slate-100 bg-white">
+        純前端靜態工具，所有轉換程序皆在您的本機端處理，完全不會傳輸任何影像資料。
+    </footer>
+
+    <!-- 邏輯腳本 -->
+    <script>
+        // --- 輔助工具函數 ---
+        
+        // 確保 Base64 有適當的前綴，若貼上的是純代碼則預設為 png
+        function sanitizeToDataUrl(str) {
+            str = str.trim();
+            if (str.startsWith('data:image/')) {
+                return str;
+            }
+            // 嘗試過濾掉非 base64 字元（例如空格、換行）
+            const cleanStr = str.replace(/[^A-Za-z0-9+/=]/g, '');
+            return `data:image/png;base64,${cleanStr}`;
+        }
+
+        // 格式化檔案大小
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // 複製文字的跨瀏覽器解決方案
+        function executeCopy(textToCopy, successMessage) {
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = textToCopy;
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast(successMessage, 'success');
+                } else {
+                    showToast('複製失敗，請手動複製！', 'error');
+                }
+            } catch (err) {
+                showToast('瀏覽器不支援自動複製，請手動複製！', 'error');
+            }
+            document.body.removeChild(tempTextarea);
+        }
+
+
+        // ==========================================
+        //  左半邊邏輯：影像 ➔ Base64
+        // ==========================================
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const convertResultSection = document.getElementById('convertResultSection');
+        const imgPreview = document.getElementById('imgPreview');
+        const base64Output = document.getElementById('base64Output');
+        
+        // 資訊展示欄位
+        const infoName = document.getElementById('infoName');
+        const infoSize = document.getElementById('infoSize');
+        const infoType = document.getElementById('infoType');
+        const infoResolution = document.getElementById('infoResolution');
+        const charCount = document.getElementById('charCount');
+        const estimatedSize = document.getElementById('estimatedSize');
+        
+        // 按鈕
+        const copyAllBtn = document.getElementById('copyAllBtn');
+        const copyHtmlBtn = document.getElementById('copyHtmlBtn');
+
+        function processImageFile(file) {
+            if (!file) return;
+
+            // 格式安全檢查
+            if (!file.type.startsWith('image/')) {
+                showToast('請上傳影像類型的檔案！', 'error');
+                return;
+            }
+
+            const fileSizeFormatted = formatBytes(file.size);
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                const base64Data = e.target.result;
+
+                // 更新預覽圖
+                imgPreview.src = base64Data;
+                
+                // 讀取影像實際寬高與填入詳細資訊
+                imgPreview.onload = () => {
+                    infoName.textContent = file.name;
+                    infoSize.textContent = fileSizeFormatted;
+                    infoType.textContent = file.type || '未知格式';
+                    infoResolution.textContent = `${imgPreview.naturalWidth} x ${imgPreview.naturalHeight} 像素`;
+                };
+
+                // 顯示結果區塊
+                convertResultSection.classList.remove('hidden');
+
+                // 填入 Base64 與計算
+                base64Output.value = base64Data;
+                charCount.textContent = base64Data.length.toLocaleString();
+                estimatedSize.textContent = fileSizeFormatted; // 轉換前的大小即是估計下載大小
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // 檔案選擇監聽
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processImageFile(e.target.files[0]);
+            }
+        });
+
+        // 拖曳視覺反饋
+        ['dragover', 'dragenter'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-indigo-500', 'bg-indigo-50/50', 'scale-[1.01]');
+            }, false);
+        });
+
+        ['dragleave', 'dragend', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-indigo-500', 'bg-indigo-50/50', 'scale-[1.01]');
+            }, false);
+        });
+
+        // 放開拖曳物件
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processImageFile(files[0]);
+            }
+        });
+
+        // 複製全文按鈕
+        copyAllBtn.addEventListener('click', () => {
+            executeCopy(base64Output.value, '已成功複製 Base64 全文！');
+        });
+
+        // 複製 HTML img 標籤按鈕
+        copyHtmlBtn.addEventListener('click', () => {
+            const imgTag = `<img src="${base64Output.value}" alt="image">`;
+            executeCopy(imgTag, '已複製 HTML <img> 標籤！');
+        });
+
+
+        // ==========================================
+        //  右半邊邏輯：Base64 ➔ 影像
+        // ==========================================
+        const base64Input = document.getElementById('base64Input');
+        const clearInputBtn = document.getElementById('clearInputBtn');
+        const base64PreviewContainer = document.getElementById('base64PreviewContainer');
+        const base64Preview = document.getElementById('base64Preview');
+        const resolvedInfo = document.getElementById('resolvedInfo');
+        const formatSelect = document.getElementById('formatSelect');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // 當使用者輸入 Base64 時的解析程序
+        base64Input.addEventListener('input', () => {
+            const rawValue = base64Input.value.trim();
+
+            if (!rawValue) {
+                base64PreviewContainer.classList.add('hidden');
+                clearInputBtn.classList.add('hidden');
+                downloadBtn.disabled = true;
+                return;
+            }
+
+            clearInputBtn.classList.remove('hidden');
+            const sanitizedUrl = sanitizeToDataUrl(rawValue);
+
+            // 嘗試載入圖片
+            base64Preview.src = sanitizedUrl;
+
+            base64Preview.onload = () => {
+                // 成功載入後，計算解析大小並顯示預覽
+                base64PreviewContainer.classList.remove('hidden');
+                downloadBtn.disabled = false;
+                
+                // 估算 Base64 原始檔案大小
+                const approxBytes = Math.round((rawValue.length * 3) / 4);
+                resolvedInfo.textContent = `${base64Preview.naturalWidth}x${base64Preview.naturalHeight} | 估計大小 ${formatBytes(approxBytes)}`;
+            };
+
+            base64Preview.onerror = () => {
+                // 載入失敗，表示輸入的 Base64 程式碼格式不正確
+                base64PreviewContainer.classList.add('hidden');
+                downloadBtn.disabled = true;
+                resolvedInfo.textContent = '';
+            };
+        });
+
+        // 清除輸入內容
+        clearInputBtn.addEventListener('click', () => {
+            base64Input.value = '';
+            base64PreviewContainer.classList.add('hidden');
+            clearInputBtn.classList.add('hidden');
+            downloadBtn.disabled = true;
+        });
+
+        // 轉換格式與下載影像
+        downloadBtn.addEventListener('click', () => {
+            const rawValue = base64Input.value.trim();
+            if (!rawValue) return;
+
+            const targetFormat = formatSelect.value; // MIME 類型，例如 'image/jpeg'
+            const extension = targetFormat.split('/')[1]; // 副檔名
+            
+            const tempImg = new Image();
+            tempImg.src = sanitizeToDataUrl(rawValue);
+
+            tempImg.onload = () => {
+                // 創建 canvas 來處理影像與格式轉換
+                const canvas = document.createElement('canvas');
+                canvas.width = tempImg.naturalWidth;
+                canvas.height = tempImg.naturalHeight;
+                const ctx = canvas.getContext('2d');
+
+                // 關鍵：如果目標是 JPEG，則預先填滿純白背景（防止 PNG 的透明區域在 JPG 中變成純黑色）
+                if (targetFormat === 'image/jpeg') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // 繪製原圖到 Canvas
+                ctx.drawImage(tempImg, 0, 0);
+
+                // 將 Canvas 導出成指定的圖片格式 (品質設定為 0.9)
+                const finalDataUrl = canvas.toDataURL(targetFormat, 0.9);
+
+                // 建立一個暫時的連結觸發瀏覽器下載
+                const downloadLink = document.createElement('a');
+                downloadLink.href = finalDataUrl;
+                downloadLink.download = `decoded_image_${Date.now()}.${extension === 'jpeg' ? 'jpg' : extension}`;
+                
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                
+                showToast('圖片下載成功！', 'success');
+            };
+
+            tempImg.onerror = () => {
+                showToast('影像載入失敗，無法完成轉換下載。', 'error');
+            };
+        });
+
+
+        // ==========================================
+        //  UI 輔助：純 HTML 客製化 Toast 提示訊息
+        // ==========================================
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-5 right-5 z-50 transform translate-y-2 opacity-0 transition-all duration-300 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 text-sm font-medium ${
+                type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+            }`;
+            
+            // 加入簡短圖示
+            const icon = type === 'success' 
+                ? `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`
+                : `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+            
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            document.body.appendChild(toast);
+
+            // 動態淡入
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            // 3秒後淡出刪除
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
