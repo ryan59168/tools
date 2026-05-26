@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圖片 與 Base64 雙向轉換工具</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 適用於圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 避免子元素干擾拖曳事件 */
+        #dropzone * {
+            pointer-events: none;
+        }
+        /* 拖曳時的外觀回饋 */
+        .drag-over {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+            transform: scale(1.01);
+        }
+        /* 美化滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans transition-colors duration-200">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600 text-white p-2.5 rounded-xl shadow-md shadow-blue-200">
+                    <i class="fa-solid fa-wand-magic-sparkles text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900">Base64 影像轉換大師</h1>
+                    <p class="text-xs text-slate-500">免上傳雲端，本機 100% 隱私安全轉換</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 text-sm text-slate-500">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 shadow-sm">
+                    <span class="w-1.5 h-1.5 mr-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                    本機安全運作中
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <!-- 功能切換 Tab -->
+        <div class="flex space-x-1 bg-slate-200 p-1.5 rounded-xl max-w-md mx-auto mb-8 shadow-inner">
+            <button id="tab-img-to-b64" onclick="switchTab('img-to-b64')" class="w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 bg-white text-blue-700 shadow-sm">
+                <i class="fa-solid fa-image"></i>
+                <span>圖片 ➔ Base64</span>
+            </button>
+            <button id="tab-b64-to-img" onclick="switchTab('b64-to-img')" class="w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-white/50">
+                <i class="fa-solid fa-code"></i>
+                <span>Base64 ➔ 圖片</span>
+            </button>
+        </div>
+
+        <!-- 自訂提示通知元件 -->
+        <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+            <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3">
+                <i id="toast-icon" class="fa-solid fa-circle-check text-green-400 text-lg"></i>
+                <span id="toast-message" class="text-sm font-semibold">複製成功！</span>
+            </div>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- 區塊一：圖片轉 Base64 -->
+        <!-- ============================================== -->
+        <section id="section-img-to-b64" class="space-y-6 max-w-5xl mx-auto">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                <h2 class="text-lg font-bold text-slate-900 mb-2">步驟 1：選擇、拖入或直接貼上圖片</h2>
+                <p class="text-sm text-slate-500 mb-6">支援拖曳多種常見圖片格式如 PNG、JPG、JPEG、WEBP、GIF，甚至 SVG。您也可以在此視窗直接按 <b>Ctrl + V</b> 貼入截圖！</p>
+
+                <!-- 拖曳上傳區 -->
+                <div id="dropzone" class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-50 transition-all duration-200 group relative">
+                    <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/*">
+                    <div class="space-y-4">
+                        <div class="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:scale-105 transition-transform duration-200">
+                            <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                        </div>
+                        <div>
+                            <p class="text-base font-semibold text-slate-700">拖曳圖片到此處，或 <span class="text-blue-600 group-hover:underline">點擊瀏覽檔案</span></p>
+                            <p class="text-xs text-slate-400 mt-1">支援 PNG, JPG, JPEG, WEBP, GIF, SVG (亦支援剪貼簿直接貼上)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 預覽與資訊區 -->
+                <div id="img-preview-container" class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+                    <!-- 左側：圖片縮圖 -->
+                    <div class="md:col-span-1 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-sm font-semibold text-slate-500 mb-3">圖片預覽</h3>
+                            <div class="aspect-square bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 relative p-2">
+                                <img id="preview-image" src="" alt="預覽圖" class="max-w-full max-h-full object-contain">
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-slate-200 text-xs text-slate-500 space-y-1.5">
+                            <p class="truncate"><strong>檔名：</strong> <span id="info-name" class="text-slate-700 font-medium">-</span></p>
+                            <p><strong>大小：</strong> <span id="info-size" class="text-slate-700 font-medium">-</span></p>
+                            <p><strong>類型：</strong> <span id="info-type" class="text-slate-700 font-medium">-</span></p>
+                            <p><strong>解析度：</strong> <span id="info-dimensions" class="text-slate-700 font-medium">-</span></p>
+                        </div>
+                    </div>
+
+                    <!-- 右側：產生的 Base64 文字 -->
+                    <div class="md:col-span-2 flex flex-col justify-between bg-slate-50 rounded-xl p-4 border border-slate-200">
+                        <div class="flex-1 flex flex-col">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                                <h3 class="text-sm font-semibold text-slate-500">Base64 結果</h3>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="copyRawBase64()" class="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-xs font-semibold inline-flex items-center space-x-1 shadow-sm transition-all">
+                                        <i class="fa-solid fa-copy"></i>
+                                        <span>複製全文</span>
+                                    </button>
+                                    <button onclick="copyImgTag()" class="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 rounded-lg text-xs font-semibold inline-flex items-center space-x-1 shadow-sm transition-all">
+                                        <i class="fa-solid fa-code"></i>
+                                        <span>複製 HTML &lt;img&gt;</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="b64-output" readonly class="flex-1 w-full min-h-[220px] p-3 text-xs font-mono bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" placeholder="轉換後的 Base64 碼會顯示在這裡..."></textarea>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-200 flex justify-between items-center text-xs text-slate-400">
+                            <span>字元數：<strong id="b64-char-count" class="text-slate-600">0</strong></span>
+                            <span>估算大小：<strong id="b64-size-est" class="text-slate-600">0 KB</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- 區塊二：Base64 轉圖片 -->
+        <!-- ============================================== -->
+        <section id="section-b64-to-img" class="space-y-6 max-w-5xl mx-auto hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+                <h2 class="text-lg font-bold text-slate-900 mb-2">步驟 1：貼入 Base64 程式碼</h2>
+                <p class="text-sm text-slate-500 mb-6">可貼入純 Base64 字串，或是帶有 <code>data:image/...;base64,</code> 開頭的完整 DataURL、甚至是整段 HTML <code>&lt;img src="..."&gt;</code> 程式碼，系統會自動解析。</p>
+
+                <div class="space-y-4">
+                    <!-- 輸入框 -->
+                    <div class="relative">
+                        <textarea id="b64-input" class="w-full h-48 p-4 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none" placeholder="在此貼上您的 Base64 程式碼...&#10;支援自動去除非必要字串。&#10;範例：data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="></textarea>
+                        <!-- 清除與貼上按鈕 -->
+                        <div class="absolute bottom-3 right-3 flex space-x-2">
+                            <button onclick="clearB64Input()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium transition-all">
+                                清除內容
+                            </button>
+                            <button onclick="convertB64ToImage()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-md shadow-blue-200 transition-all">
+                                立即轉換 ➔
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 轉換錯誤提示 (預設隱藏) -->
+                    <div id="b64-error" class="hidden p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-center space-x-2">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>格式不正確，無法解析為有效的圖片 Base64 編碼，請檢查資料完整度。</span>
+                    </div>
+
+                    <!-- 轉換結果預覽與下載 -->
+                    <div id="b64-preview-container" class="mt-8 pt-8 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-6 hidden">
+                        <!-- 左側：圖片預覽 -->
+                        <div class="md:col-span-1 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-500 mb-3">轉換成功預覽</h3>
+                                <div class="aspect-square bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200 p-2 relative">
+                                    <img id="b64-decoded-image" src="" alt="解碼後的圖片" class="max-w-full max-h-full object-contain">
+                                </div>
+                            </div>
+                            <div class="mt-4 text-xs text-slate-500 space-y-1.5">
+                                <p><strong>偵測類型：</strong> <span id="decoded-info-type" class="text-slate-700 font-medium">-</span></p>
+                                <p><strong>解析度：</strong> <span id="decoded-info-dimensions" class="text-slate-700 font-medium">-</span></p>
+                            </div>
+                        </div>
+
+                        <!-- 右側：匯出設定 -->
+                        <div class="md:col-span-2 bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold text-slate-500 mb-4">下載與匯出格式設定</h3>
+                                
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <!-- 格式選擇 -->
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-600 mb-2">1. 選擇下載格式</label>
+                                        <div class="grid grid-cols-3 gap-2 bg-slate-200 p-1 rounded-lg">
+                                            <button onclick="setExportFormat('png')" id="fmt-png" class="py-1.5 text-xs font-semibold rounded bg-white text-slate-800 shadow-sm transition-all">PNG</button>
+                                            <button onclick="setExportFormat('jpeg')" id="fmt-jpeg" class="py-1.5 text-xs font-semibold rounded text-slate-600 hover:text-slate-800 hover:bg-white/50 transition-all">JPG</button>
+                                            <button onclick="setExportFormat('webp')" id="fmt-webp" class="py-1.5 text-xs font-semibold rounded text-slate-600 hover:text-slate-800 hover:bg-white/50 transition-all">WebP</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- 壓縮品質 (JPG/WEBP 專屬) -->
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-600 mb-2 flex justify-between">
+                                            <span>2. 壓縮品質</span>
+                                            <span id="quality-val" class="text-blue-600 font-extrabold">90%</span>
+                                        </label>
+                                        <input type="range" id="quality-range" min="10" max="100" value="90" oninput="updateQuality(this.value)" class="w-full accent-blue-600 cursor-pointer" disabled>
+                                        <p id="quality-tip" class="text-[10px] text-slate-400 mt-1">僅在 JPG/WebP 格式下可調整品質</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-6">
+                                    <label class="block text-xs font-bold text-slate-600 mb-2">3. 檔名自訂</label>
+                                    <div class="flex rounded-lg shadow-sm">
+                                        <input type="text" id="export-filename" class="block w-full border border-slate-300 rounded-l-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500" value="decoded_image">
+                                        <span id="export-extension" class="inline-flex items-center px-3 rounded-r-lg border border-l-0 border-slate-300 bg-slate-100 text-slate-500 text-sm font-semibold">
+                                            .png
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-8 pt-4 border-t border-slate-200">
+                                <button onclick="downloadDecodedImage()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-100 flex items-center justify-center space-x-2 transition-all active:scale-[0.99]">
+                                    <i class="fa-solid fa-download"></i>
+                                    <span>下載轉換後的圖片</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 mt-20">
+        <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 text-center text-xs text-slate-400 space-y-2">
+            <p>本工具所有轉換處理完全在您的個人瀏覽器中以 JavaScript 執行，不會上傳任何內容至伺服器，保障您的數據隱私與安全。</p>
+            <p>&copy; 2026 Base64 影像轉換大師. 免費開源工具.</p>
+        </div>
+    </footer>
+
+    <!-- 主要邏輯 JavaScript -->
+    <script>
+        // 全域狀態
+        let currentTab = 'img-to-b64';
+        let exportFormat = 'png'; // 預設解碼導出格式
+        let originalDecodedImage = null; // 存放解碼後的 Image 物件以供再格式化
+        let originalFileName = ''; // 儲存上傳圖片時的原檔名
+        let lastDecodedDataUrl = ''; // 記錄最近解碼成功的原始 DataURL 以供安全降級下載
+
+        // ==============================================
+        // 通用 UI 邏輯與輔助函式
+        // ==============================================
+        
+        // 頁籤切換
+        function switchTab(tabId) {
+            currentTab = tabId;
+            const tabImgBtn = document.getElementById('tab-img-to-b64');
+            const tabB64Btn = document.getElementById('tab-b64-to-img');
+            const secImg = document.getElementById('section-img-to-b64');
+            const secB64 = document.getElementById('section-b64-to-img');
+
+            if (tabId === 'img-to-b64') {
+                tabImgBtn.className = "w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 bg-white text-blue-700 shadow-sm";
+                tabB64Btn.className = "w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-white/50";
+                secImg.classList.remove('hidden');
+                secB64.classList.add('hidden');
+            } else {
+                tabB64Btn.className = "w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 bg-white text-blue-700 shadow-sm";
+                tabImgBtn.className = "w-1/2 py-2.5 text-sm font-semibold leading-5 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 text-slate-600 hover:text-slate-900 hover:bg-white/50";
+                secImg.classList.add('hidden');
+                secB64.classList.remove('hidden');
+            }
+        }
+
+        // 自訂 Toast 通知
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.textContent = message;
+            if (isSuccess) {
+                toastIcon.className = "fa-solid fa-circle-check text-green-400 text-lg";
+            } else {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-red-400 text-lg";
+            }
+
+            // 顯示
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            // 2.5 秒後消失
+            if (window.toastTimeout) {
+                clearTimeout(window.toastTimeout);
+            }
+            window.toastTimeout = setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        // 安全且相容性高（iframe 環境）的剪貼簿複製常式
+        function safeCopyToClipboard(textToCopy) {
+            if (!textToCopy) {
+                showToast('沒有可複製的內容', false);
+                return;
+            }
+
+            // 動態建立不可見但存在於 DOM 中的 textarea
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = textToCopy;
+            tempTextarea.style.position = 'fixed';
+            tempTextarea.style.top = '0';
+            tempTextarea.style.left = '0';
+            tempTextarea.style.width = '2em';
+            tempTextarea.style.height = '2em';
+            tempTextarea.style.padding = '0';
+            tempTextarea.style.border = 'none';
+            tempTextarea.style.outline = 'none';
+            tempTextarea.style.boxShadow = 'none';
+            tempTextarea.style.background = 'transparent';
+            
+            document.body.appendChild(tempTextarea);
+            tempTextarea.focus();
+            tempTextarea.select();
+            tempTextarea.setSelectionRange(0, 99999); // 增加手機相容度
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast('複製成功！');
+                } else {
+                    showToast('複製失敗，請手動複製', false);
+                }
+            } catch (err) {
+                showToast('複製失敗：' + err, false);
+            }
+
+            document.body.removeChild(tempTextarea);
+        }
+
+        // 複製純 Base64 全文
+        function copyRawBase64() {
+            const rawText = document.getElementById('b64-output').value;
+            safeCopyToClipboard(rawText);
+        }
+
+        // 複製帶有 HTML <img> 格式
+        function copyImgTag() {
+            const rawText = document.getElementById('b64-output').value;
+            if (!rawText) {
+                showToast('沒有可複製的內容', false);
+                return;
+            }
+            const filename = originalFileName || 'image';
+            const imgTag = `<img src="${rawText}" alt="${filename}">`;
+            safeCopyToClipboard(imgTag);
+        }
+
+        // ==============================================
+        // 邏輯一：圖片轉 Base64
+        // ==============================================
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('file-input');
+
+        // 拖曳視覺回饋
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.add('drag-over');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropzone.classList.remove('drag-over');
+            }, false);
+        });
+
+        // 拖曳放開處理
+        dropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                handleImageFile(files[0]);
+            }
+        });
+
+        // 點選檔案處理
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        // 監聽鍵盤貼上事件 (Ctrl+V / Cmd+V)
+        document.addEventListener('paste', (e) => {
+            if (currentTab !== 'img-to-b64') return;
+            
+            const items = e.clipboardData?.items;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        showToast('已偵測到剪貼簿中的圖片！');
+                        handleImageFile(file);
+                        break;
+                    }
+                }
+            }
+        });
+
+        // 核心檔案讀取函數
+        function handleImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast('不支援此格式，請上傳圖片檔案！', false);
+                return;
+            }
+
+            originalFileName = file.name;
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                const base64DataUrl = e.target.result;
+                
+                // 更新預覽圖
+                const previewImg = document.getElementById('preview-image');
+                previewImg.src = base64DataUrl;
+
+                // 更新 Base64 文字框
+                document.getElementById('b64-output').value = base64DataUrl;
+
+                // 更新圖片檔案資訊
+                document.getElementById('info-name').textContent = file.name || '貼上自剪貼簿';
+                document.getElementById('info-size').textContent = formatBytes(file.size);
+                document.getElementById('info-type').textContent = file.type || 'image/png';
+                
+                // 讀取圖片寬高
+                const img = new Image();
+                img.onload = function() {
+                    const w = this.naturalWidth || this.width || '未知';
+                    const h = this.naturalHeight || this.height || '未知';
+                    document.getElementById('info-dimensions').textContent = `${w} x ${h} 像素`;
+                };
+                img.src = base64DataUrl;
+
+                // 更新字元數與大小統計
+                document.getElementById('b64-char-count').textContent = base64DataUrl.length.toLocaleString();
+                const estSize = Math.round((base64DataUrl.length * 3) / 4);
+                document.getElementById('b64-size-est').textContent = formatBytes(estSize);
+
+                // 展開預覽資訊區
+                document.getElementById('img-preview-container').classList.remove('hidden');
+                showToast('圖片轉 Base64 成功！');
+            };
+
+            reader.onerror = function() {
+                showToast('讀取檔案時發生錯誤', false);
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        // 位元組格式化輔助
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // ==============================================
+        // 邏輯二：Base64 轉圖片
+        // ==============================================
+        
+        // 清除輸入
+        function clearB64Input() {
+            document.getElementById('b64-input').value = '';
+            document.getElementById('b64-preview-container').classList.add('hidden');
+            document.getElementById('b64-error').classList.add('hidden');
+            originalDecodedImage = null;
+            lastDecodedDataUrl = '';
+        }
+
+        // 轉換
+        function convertB64ToImage() {
+            let inputStr = document.getElementById('b64-input').value.trim();
+            const errorDiv = document.getElementById('b64-error');
+            const previewContainer = document.getElementById('b64-preview-container');
+
+            if (!inputStr) {
+                showToast('請輸入 Base64 程式碼', false);
+                return;
+            }
+
+            errorDiv.classList.add('hidden');
+
+            // --- 智慧解析過濾器 ---
+            const imgTagMatch = inputStr.match(/<img[^>]+src=["'](data:image\/[^"']+)["']/i);
+            if (imgTagMatch && imgTagMatch[1]) {
+                inputStr = imgTagMatch[1];
+            }
+            const cssUrlMatch = inputStr.match(/url\(["']?(data:image\/[^"'\)]+)["']?\)/i);
+            if (cssUrlMatch && cssUrlMatch[1]) {
+                inputStr = cssUrlMatch[1];
+            }
+
+            // 移除文字內多餘的空格、換行符號
+            let cleanedStr = inputStr.replace(/[\s\r\n]/g, '');
+            let dataUrl = cleanedStr;
+
+            // 如果貼入的是純 Base64 字串，則補齊前置 Data URI
+            if (!cleanedStr.startsWith('data:')) {
+                let mimeType = 'image/png'; // 預設值
+                if (cleanedStr.startsWith('/9j/')) {
+                    mimeType = 'image/jpeg';
+                } else if (cleanedStr.startsWith('R0lGOD')) {
+                    mimeType = 'image/gif';
+                } else if (cleanedStr.startsWith('UklGR')) {
+                    mimeType = 'image/webp';
+                } else if (cleanedStr.startsWith('PHN2Zy') || cleanedStr.startsWith('<svg')) {
+                    mimeType = 'image/svg+xml';
+                }
+                dataUrl = `data:${mimeType};base64,${cleanedStr}`;
+            }
+
+            lastDecodedDataUrl = dataUrl;
+
+            // 使用 Image 物件載入
+            const img = new Image();
+            
+            // 啟用跨域屬性設定，降低 Sandbox 限制機率
+            img.crossOrigin = 'anonymous'; 
+
+            img.onload = function() {
+                originalDecodedImage = img;
+
+                // 更新解碼後的預覽圖
+                const decodedImgEl = document.getElementById('b64-decoded-image');
+                decodedImgEl.src = dataUrl;
+
+                // 解析 MIME 類型
+                let mimeType = 'image/png';
+                const match = dataUrl.match(/data:([^;]+);/);
+                if (match && match[1]) {
+                    mimeType = match[1];
+                }
+
+                const w = this.naturalWidth || this.width || 500;
+                const h = this.naturalHeight || this.height || 500;
+
+                document.getElementById('decoded-info-type').textContent = mimeType;
+                document.getElementById('decoded-info-dimensions').textContent = `${w} x ${h} 像素`;
+
+                // 展開下載與匯出控制區
+                previewContainer.classList.remove('hidden');
+                
+                // 自動套用偵測到的格式設定
+                detectAndApplyMIMEConfig(mimeType);
+                showToast('Base64 成功還原為影像！');
+            };
+
+            img.onerror = function() {
+                errorDiv.classList.remove('hidden');
+                previewContainer.classList.add('hidden');
+                showToast('解碼失敗，請確認代碼是否完整與正確', false);
+            };
+
+            // 開始加載
+            img.src = dataUrl;
+        }
+
+        // 自動套用偵測到的 MIME 格式至下載設定
+        function detectAndApplyMIMEConfig(mimeType) {
+            let format = 'png';
+            if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
+                format = 'jpeg';
+            } else if (mimeType.includes('webp')) {
+                format = 'webp';
+            }
+            setExportFormat(format);
+        }
+
+        // 設定匯出格式與按鈕高亮
+        function setExportFormat(format) {
+            exportFormat = format;
+            const btns = {
+                png: document.getElementById('fmt-png'),
+                jpeg: document.getElementById('fmt-jpeg'),
+                webp: document.getElementById('fmt-webp')
+            };
+
+            const extSpan = document.getElementById('export-extension');
+            const qualityRange = document.getElementById('quality-range');
+
+            // 還原樣式
+            Object.keys(btns).forEach(key => {
+                if (btns[key]) {
+                    btns[key].className = "py-1.5 text-xs font-semibold rounded text-slate-600 hover:text-slate-800 hover:bg-white/50 transition-all";
+                }
+            });
+
+            // 高亮選中
+            if (btns[format]) {
+                btns[format].className = "py-1.5 text-xs font-semibold rounded bg-white text-slate-800 shadow-sm transition-all";
+            }
+            
+            // 更新副檔名顯示與 Slider 品質控制
+            if (format === 'png') {
+                extSpan.textContent = '.png';
+                qualityRange.disabled = true;
+                qualityRange.classList.add('opacity-50');
+            } else if (format === 'jpeg') {
+                extSpan.textContent = '.jpg';
+                qualityRange.disabled = false;
+                qualityRange.classList.remove('opacity-50');
+            } else {
+                extSpan.textContent = '.webp';
+                qualityRange.disabled = false;
+                qualityRange.classList.remove('opacity-50');
+            }
+        }
+
+        // 更新滑動條數值
+        function updateQuality(val) {
+            document.getElementById('quality-val').textContent = val + '%';
+        }
+
+        // 下載解碼後的圖片 (核心修正處：包含安全降級與防 CORS 機制)
+        function downloadDecodedImage() {
+            if (!originalDecodedImage && !lastDecodedDataUrl) {
+                showToast('無效的影像對象', false);
+                return;
+            }
+
+            let filename = document.getElementById('export-filename').value.trim() || 'decoded_image';
+            const extension = exportFormat === 'jpeg' ? 'jpg' : exportFormat;
+            
+            if (!filename.endsWith(`.${extension}`)) {
+                filename = `${filename}.${extension}`;
+            }
+
+            // 獲取安全寬高
+            const width = originalDecodedImage ? (originalDecodedImage.naturalWidth || originalDecodedImage.width || 500) : 500;
+            const height = originalDecodedImage ? (originalDecodedImage.naturalHeight || originalDecodedImage.height || 500) : 500;
+
+            // 建立虛擬 Canvas 嘗試重繪 (以設定 JPG 白色底或 WebP 品質)
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            let finalDownloadUrl = '';
+
+            try {
+                // 如果是 JPEG，鋪上白底防止透明區變黑色
+                if (exportFormat === 'jpeg') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                if (originalDecodedImage) {
+                    ctx.drawImage(originalDecodedImage, 0, 0);
+                }
+                
+                const quality = parseFloat(document.getElementById('quality-range').value) / 100;
+                finalDownloadUrl = canvas.toDataURL(`image/${exportFormat}`, quality);
+            } catch (canvasErr) {
+                // ⚠️ 重點修復：若在 iframe 運行被判定為安全限制（Tainted Canvas Error）而崩潰
+                // 則直接採取「安全降級下載機制」，直接使用載入成功的原始 dataUrl，確保 100% 能成功下載！
+                console.warn('Canvas 輸出受沙盒安全限制，已啟用 100% 相容無失真降級下載方案。');
+                finalDownloadUrl = lastDecodedDataUrl;
+            }
+
+            // 建立 A 標籤下載
+            try {
+                const downloadLink = document.createElement('a');
+                downloadLink.href = finalDownloadUrl;
+                downloadLink.download = filename;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                showToast('圖片下載成功！');
+            } catch (err) {
+                showToast('瀏覽器限制了此環境下的檔案下載。', false);
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
