@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 模型展示</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #020617; color: #f8fafc; overflow: hidden; height: 100vh; }
+        .glass-nav { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .view-container { height: calc(100vh - 180px); }
+        .viewer-box { width: 100%; height: 100%; background: #000; border-radius: 12px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; }
+        
+        /* 強制讓注入的內容填滿容器 */
+        .viewer-box iframe, .viewer-box div { width: 100% !important; height: 100% !important; border: none !important; }
+        .active-btn { background: #3b82f6 !important; color: white !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        
+        /* 下拉選單樣式與文字置中 */
+        select { 
+            background-color: #0f172a; 
+            border: 1px solid #334155; 
+            color: white; 
+            padding: 0.5rem; 
+            border-radius: 0.8rem; 
+            font-size: 0.75rem; 
+            outline: none; 
+            width: 100%; 
+            appearance: none; 
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); 
+            background-repeat: no-repeat; 
+            background-position: right 0.8rem center; 
+            background-size: 0.8rem; 
+            cursor: pointer;
+            text-align: center;       /* 水平置中 */
+            text-align-last: center;    /* 確保選取後的文字也置中 */
+        }
+        select:hover { border-color: #3b82f6; }
+        select option { text-align: center; background-color: #0f172a; }
+    </style>
+</head>
+<body class="flex flex-col">
+
+    <nav class="p-4 glass-nav z-50">
+        <div class="max-w-[1800px] mx-auto flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">3D 模型展示平台</h1>
+                </div>
+                
+                <div class="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700">
+                    <button onclick="setView('mesh')" id="btn-mesh" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all">MESH 模式</button>
+                    <button onclick="setView('gs')" id="btn-gs" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all">3DGS 模式</button>
+                    <button onclick="setView('dual')" id="btn-dual" class="px-4 py-1.5 text-xs font-semibold rounded-lg transition-all">分屏對照</button>
+                </div>
+            </div>
+
+            <!-- 選單區域 -->
+            <div id="selectorArea" class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end min-h-[50px]">
+                <!-- 由 JavaScript 動態注入 -->
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow p-4 relative">
+        <div id="loader" class="absolute inset-0 flex flex-col items-center justify-center z-40 bg-[#020617]">
+            <div class="w-10 h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+            <p id="loaderText" class="text-slate-400 text-xs font-medium">資料載入中...</p>
+        </div>
+
+        <div id="viewerGrid" class="view-container grid grid-cols-1 gap-4 max-w-[1800px] mx-auto h-full">
+            <!-- 左視窗 -->
+            <div id="leftContainer" class="relative h-full">
+                <div id="labelA" class="absolute top-3 left-3 z-20 px-2 py-1 bg-black/70 text-[10px] font-bold rounded border border-white/10 text-blue-400 uppercase">WINDOW A</div>
+                <div id="leftViewer" class="viewer-box">
+                    <span class="text-slate-600 text-xs italic">請選擇模型</span>
+                </div>
+            </div>
+
+            <!-- 右視窗 -->
+            <div id="rightContainer" class="relative h-full hidden">
+                <div id="labelB" class="absolute top-3 left-3 z-20 px-2 py-1 bg-black/70 text-[10px] font-bold rounded border border-white/10 text-emerald-400 uppercase">WINDOW B</div>
+                <div id="rightViewer" class="viewer-box">
+                    <span class="text-slate-600 text-xs italic">請選擇模型</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxHGYOMnXskr2zlse80fTlAEZbYiAmmQK0vbOaZZnNcGTH-dffyDaM59oY_7mjpLOvq/exec';
+        let modelData = { mesh: [], gs: [] };
+
+        const placeholderHTML = `<span class="text-slate-600 text-xs italic">請選擇模型</span>`;
+
+        // 初始化 API
+        async function init() {
+            try {
+                const response = await fetch(GAS_URL);
+                const data = await response.json();
+                modelData.mesh = data.mesh || [];
+                modelData.gs = data.gs || [];
+                document.getElementById('loader').style.display = 'none';
+                setView('mesh'); 
+            } catch (error) {
+                document.getElementById('loaderText').innerHTML = `<span class="text-red-400">連線失敗，請檢查 API 部署權限</span>`;
+            }
+        }
+
+        // 更新視窗內容
+        function updateContent(containerId, type, index) {
+            const container = document.getElementById(containerId);
+            const item = modelData[type][index];
+            if (!item || !item.URL) return;
+
+            container.style.opacity = '0.3';
+            setTimeout(() => {
+                const content = item.URL.trim();
+                // 如果是 HTML 代碼則直接注入，否則包裝成 iframe
+                if (content.startsWith('<')) {
+                    container.innerHTML = content;
+                } else {
+                    container.innerHTML = `<iframe src="${content}" allowfullscreen allow="xr-spatial-tracking"></iframe>`;
+                }
+                container.style.opacity = '1';
+            }, 100);
+        }
+
+        // 切換檢視模式
+        function setView(view) {
+            const grid = document.getElementById('viewerGrid');
+            const left = document.getElementById('leftContainer');
+            const right = document.getElementById('rightContainer');
+            const selectorArea = document.getElementById('selectorArea');
+            
+            // 重要：切換模式時先清除所有視窗內容，防止舊模型繼續執行
+            document.getElementById('leftViewer').innerHTML = placeholderHTML;
+            document.getElementById('rightViewer').innerHTML = placeholderHTML;
+
+            // 更新按鈕樣式
+            ['mesh', 'gs', 'dual'].forEach(v => {
+                document.getElementById(`btn-${v}`).classList.toggle('active-btn', v === view);
+            });
+
+            // 準備選單 HTML
+            const meshOptions = `<option value="" disabled selected>— 選擇 MESH 模型 —</option>` + 
+                modelData.mesh.map((m, i) => `<option value="${i}">${m.Name || '未命名'}</option>`).join('');
+            
+            const gsOptions = `<option value="" disabled selected>— 選擇 3DGS 模型 —</option>` + 
+                modelData.gs.map((g, i) => `<option value="${i}">${g.Name || '未命名'}</option>`).join('');
+
+            if (view === 'mesh') {
+                grid.className = "view-container grid grid-cols-1 max-w-[1200px] mx-auto h-full";
+                left.classList.remove('hidden');
+                right.classList.add('hidden');
+                document.getElementById('labelA').innerText = "MESH VIEW";
+                selectorArea.innerHTML = `<div class="md:col-start-2 md:col-span-2"><select onchange="updateContent('leftViewer', 'mesh', this.value)">${meshOptions}</select></div>`;
+            } else if (view === 'gs') {
+                grid.className = "view-container grid grid-cols-1 max-w-[1200px] mx-auto h-full";
+                left.classList.remove('hidden');
+                right.classList.add('hidden');
+                document.getElementById('labelA').innerText = "3DGS VIEW";
+                selectorArea.innerHTML = `<div class="md:col-start-2 md:col-span-2"><select onchange="updateContent('leftViewer', 'gs', this.value)">${gsOptions}</select></div>`;
+            } else if (view === 'dual') {
+                grid.className = "view-container grid grid-cols-1 md:grid-cols-2 gap-4 w-full h-full";
+                left.classList.remove('hidden');
+                right.classList.remove('hidden');
+                document.getElementById('labelA').innerText = "WINDOW A";
+                document.getElementById('labelB').innerText = "WINDOW B";
+                selectorArea.innerHTML = `
+                    <div class="md:col-span-2 grid grid-cols-2 gap-2 border-r border-slate-800 pr-4">
+                        <div class="col-span-2 text-[10px] font-bold text-slate-500 text-center uppercase">左側視窗 (A) 控制</div>
+                        <select onchange="updateContent('leftViewer', 'mesh', this.value)">${meshOptions}</select>
+                        <select onchange="updateContent('leftViewer', 'gs', this.value)">${gsOptions}</select>
+                    </div>
+                    <div class="md:col-span-2 grid grid-cols-2 gap-2 pl-4">
+                        <div class="col-span-2 text-[10px] font-bold text-slate-500 text-center uppercase">右側視窗 (B) 控制</div>
+                        <select onchange="updateContent('rightViewer', 'mesh', this.value)">${meshOptions}</select>
+                        <select onchange="updateContent('rightViewer', 'gs', this.value)">${gsOptions}</select>
+                    </div>`;
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
