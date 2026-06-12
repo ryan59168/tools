@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>極簡即時匯率換算</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 避免手機上雙擊縮放延遲 */
+        button, select, input {
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-3 sm:p-6 text-slate-800">
+
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
+        
+        <div class="p-5 sm:p-6 flex-1">
+            <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                        <i class="fa-solid fa-money-bill-transfer text-lg"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold text-slate-800">即時匯率換算</h1>
+                        <p class="text-xs text-slate-400">行動優化版</p>
+                    </div>
+                </div>
+                <span id="updateTime" class="text-[10px] text-right text-slate-400 max-w-[150px] leading-tight">
+                    獲取數據中...
+                </span>
+            </div>
+
+            <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-4 transition-all focus-within:ring-2 focus-within:ring-indigo-500 focus-within:bg-white">
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">輸入金額</label>
+                <div class="flex items-center justify-between">
+                    <span class="text-2xl font-semibold text-indigo-600 mr-2" id="currencySymbol">$</span>
+                    <input type="text" id="amountDisplay" readonly value="0" class="w-full text-right text-3xl font-bold bg-transparent text-slate-800 focus:outline-none select-none" />
+                </div>
+            </div>
+
+            <div class="grid grid-cols-11 items-center gap-2 mb-4">
+                <div class="col-span-5">
+                    <label class="block text-xs font-semibold text-slate-400 mb-1 pl-1">來源幣別</label>
+                    <select id="fromCurrency" class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        </select>
+                </div>
+
+                <div class="col-span-1 flex justify-center pt-4">
+                    <button id="swapBtn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2.5 rounded-full transition-all active:scale-90 focus:outline-none">
+                        <i class="fa-solid fa-right-left text-xs"></i>
+                    </button>
+                </div>
+
+                <div class="col-span-5">
+                    <label class="block text-xs font-semibold text-slate-400 mb-1 pl-1">轉換至</label>
+                    <select id="toCurrency" class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                        </select>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-2xl p-5 text-white shadow-md">
+                <p class="text-xs text-indigo-100 font-medium mb-1">計算結果</p>
+                <div id="resultValue" class="text-2xl sm:text-3xl font-extrabold tracking-wide truncate">
+                    計算中...
+                </div>
+                <div id="exchangeRateInfo" class="text-xs text-indigo-200 mt-2 flex items-center gap-1">
+                    <i class="fa-solid fa-chart-line"></i> 正在載入即時匯率...
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-100 p-4 border-t border-slate-200/60 grid grid-cols-3 gap-2">
+            <button class="key-btn" data-val="1">1</button>
+            <button class="key-btn" data-val="2">2</button>
+            <button class="key-btn" data-val="3">3</button>
+            
+            <button class="key-btn" data-val="4">4</button>
+            <button class="key-btn" data-val="5">5</button>
+            <button class="key-btn" data-val="6">6</button>
+            
+            <button class="key-btn" data-val="7">7</button>
+            <button class="key-btn" data-val="8">8</button>
+            <button class="key-btn" data-val="9">9</button>
+            
+            <button class="key-btn text-red-500 font-bold bg-red-50 hover:bg-red-100 active:bg-red-200" data-val="C">C</button>
+            <button class="key-btn" data-val="0">0</button>
+            <button class="key-btn text-amber-600 bg-amber-50 hover:bg-amber-100 active:bg-amber-200" data-val="back">
+                <i class="fa-solid fa-delete-left"></i>
+            </button>
+            
+            <button class="key-btn col-span-2 font-bold text-slate-600" data-val=".">.</button>
+            <button class="key-btn bg-slate-200 text-slate-700 font-semibold hover:bg-slate-300" data-val="00">00</button>
+        </div>
+    </div>
+
+    <style>
+        .key-btn {
+            @apply bg-white hover:bg-slate-50 active:bg-slate-200 text-slate-800 text-xl font-semibold py-3.5 rounded-xl shadow-sm border border-slate-200/40 transition-all flex items-center justify-center select-none active:scale-95;
+            min-height: 54px; /* 保證完美的觸控大目標 */
+        }
+    </style>
+
+    <script>
+        // 常用幣別定義與符號
+        const currencies = [
+            { code: 'TWD', name: 'TWD - 新台幣', symbol: 'NT$' },
+            { code: 'USD', name: 'USD - 美元', symbol: '$' },
+            { code: 'EUR', name: 'EUR - 歐元', symbol: '€' },
+            { code: 'GBP', name: 'GBP - 英鎊', symbol: '£' },
+            { code: 'JPY', name: 'JPY - 日圓', symbol: '¥' },
+            { code: 'KRW', name: 'KRW - 韓元', symbol: '₩' },
+            { code: 'CNY', name: 'CNY - 人民幣', symbol: '¥' },
+            { code: 'HKD', name: 'HKD - 港幣', symbol: 'HK$' },
+	    { code: 'THB', name: 'THB - 泰銖', symbol: '฿' },
+	    { code: 'VND', name: 'VND - 越南盾', symbol: '₫' },
+	    { code: 'SGD', name: 'SGD - 新加坡幣', symbol: 'S$' },
+	    { code: 'MYR', name: 'MYR - 馬來西亞令吉', symbol: 'RM' }
+        ];
+
+        // 綁定 DOM 元素
+        const amountDisplay = document.getElementById('amountDisplay');
+        const currencySymbol = document.getElementById('currencySymbol');
+        const fromSelect = document.getElementById('fromCurrency');
+        const toSelect = document.getElementById('toCurrency');
+        const swapBtn = document.getElementById('swapBtn');
+        const resultValue = document.getElementById('resultValue');
+        const exchangeRateInfo = document.getElementById('exchangeRateInfo');
+        const updateTime = document.getElementById('updateTime');
+
+        let exchangeRates = {};
+        let currentInputValue = "0"; // 內部保存輸入的字串狀態
+
+        // 初始化下拉選單
+        function initOptions() {
+            currencies.forEach(cur => {
+                const optFrom = document.createElement('option');
+                optFrom.value = cur.code;
+                optFrom.text = cur.name;
+                fromSelect.add(optFrom);
+
+                const optTo = document.createElement('option');
+                optTo.value = cur.code;
+                optTo.text = cur.name;
+                toSelect.add(optTo);
+            });
+
+            // 預設匯率方向
+            fromSelect.value = 'TWD';
+            toSelect.value = 'USD';
+            updateCurrencySymbol();
+        }
+
+        // 更新輸入框前的貨幣符號
+        function updateCurrencySymbol() {
+            const selected = currencies.find(c => c.code === fromSelect.value);
+            currencySymbol.innerText = selected ? selected.symbol : '$';
+        }
+
+        // 串接免金鑰公開 API 獲取即時數據
+        async function fetchRates() {
+            try {
+                const response = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (!response.ok) throw new Error('伺服器回應異常');
+                
+                const data = await response.json();
+                exchangeRates = data.rates;
+                
+                // 轉換最後更新時間
+                const date = new Date(data.time_last_update_utc);
+                updateTime.innerHTML = `<i class="fa-solid fa-clock"></i> 更新時間<br>${date.toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'})}`;
+                
+                calculate();
+            } catch (error) {
+                console.error('匯率獲取失敗:', error);
+                resultValue.innerText = '連線失敗';
+                exchangeRateInfo.innerText = '請確認網路是否通暢';
+            }
+        }
+
+        // 計算換算結果
+        function calculate() {
+            if (!exchangeRates || Object.keys(exchangeRates).length === 0) return;
+
+            const amount = parseFloat(currentInputValue);
+            if (isNaN(amount) || amount <= 0) {
+                resultValue.innerText = '0.00';
+                exchangeRateInfo.innerText = '請輸入有效金額';
+                return;
+            }
+
+            const fromRate = exchangeRates[fromSelect.value];
+            const toRate = exchangeRates[toSelect.value];
+
+            // 交叉匯率公式：(金額 / 來源幣別對USD匯率) * 目標幣別對USD匯率
+            const converted = (amount / fromRate) * toRate;
+            
+            // 計算基準單價 (1 單位來源等於多少目標)
+            const unitRate = (1 / fromRate) * toRate;
+
+            // 格式化輸出（日圓、韓元等無小數，其餘保留裝位）
+            const isZeroDecimal = ['JPY', 'KRW'].includes(toSelect.value);
+            const digits = isZeroDecimal ? 0 : 2;
+            const unitDigits = isZeroDecimal ? 2 : 4;
+
+            resultValue.innerText = `${converted.toLocaleString('zh-TW', { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${toSelect.value}`;
+            exchangeRateInfo.innerHTML = `<i class="fa-solid fa-chart-line"></i> 即時匯率：1 ${fromSelect.value} = ${unitRate.toFixed(unitDigits)} ${toSelect.value}`;
+        }
+
+        // 處理核心鍵盤點擊與輸入事件
+        function handleKeyPress(val) {
+            if (val === 'C') {
+                currentInputValue = "0";
+            } else if (val === 'back') {
+                if (currentInputValue.length > 1) {
+                    currentInputValue = currentInputValue.slice(0, -1);
+                } else {
+                    currentInputValue = "0";
+                }
+            } else if (val === '.') {
+                if (!currentInputValue.includes('.')) {
+                    currentInputValue += '.';
+                }
+            } else if (val === '0' || val === '00') {
+                if (currentInputValue !== '0') {
+                    currentInputValue += val;
+                }
+            } else {
+                if (currentInputValue === '0') {
+                    currentInputValue = val;
+                } else {
+                    if (currentInputValue.replace('.', '').length < 10) {
+                        currentInputValue += val;
+                    }
+                }
+            }
+
+            amountDisplay.value = currentInputValue;
+            calculate();
+        }
+
+        // 觸發虛擬按鈕的點擊視覺反饋
+        function triggerVisualFeedback(val) {
+            const btn = document.querySelector(`.key-btn[data-val="${val}"]`);
+            if (btn) {
+                btn.classList.add('bg-slate-200', 'scale-95');
+                setTimeout(() => btn.classList.remove('bg-slate-200', 'scale-95'), 80);
+            }
+        }
+
+        // 1. 綁定「網頁虛擬鍵盤」點擊事件
+        document.querySelectorAll('.key-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const val = btn.getAttribute('data-val');
+                handleKeyPress(val);
+                triggerVisualFeedback(val);
+            });
+        });
+
+        // 2. 核心新增：監聽「電腦實體鍵盤」敲擊事件
+        document.addEventListener('keydown', (e) => {
+            // 防呆：如果使用者正在用鍵盤選取下拉選單（例如按上下鍵），不觸發數字輸入
+            if (document.activeElement.tagName === 'SELECT') return;
+
+            const key = e.key;
+
+            if (/^[0-9]$/.test(key)) {
+                // 敲擊 0-9 數字
+                handleKeyPress(key);
+                triggerVisualFeedback(key);
+            } else if (key === '.') {
+                // 敲擊小數點
+                handleKeyPress('.');
+                triggerVisualFeedback('.');
+            } else if (key === 'Backspace') {
+                // 敲擊退格鍵
+                handleKeyPress('back');
+                triggerVisualFeedback('back');
+            } else if (key === 'Escape' || key.toLowerCase() === 'c') {
+                // 敲擊 Esc 或 C 鍵清空
+                handleKeyPress('C');
+                triggerVisualFeedback('C');
+            }
+        });
+
+        // 對調幣別
+        swapBtn.addEventListener('click', () => {
+            const temp = fromSelect.value;
+            fromSelect.value = toSelect.value;
+            toSelect.value = temp;
+            updateCurrencySymbol();
+            calculate();
+        });
+
+        // 監聽選單變動
+        fromSelect.addEventListener('change', () => {
+            updateCurrencySymbol();
+            calculate();
+        });
+        toSelect.addEventListener('change', calculate);
+
+        // 網頁初始化
+        initOptions();
+        fetchRates();
+    </script>
+</body>
+</html>
