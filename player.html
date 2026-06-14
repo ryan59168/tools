@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>播放器</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            --accent-color: #ff3e3e;
+            --panel-bg: rgba(20, 20, 20, 0.65); 
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: #000;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+
+        #video-container {
+            width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            cursor: grab;
+            position: relative;
+            overflow: hidden;
+        }
+
+        video, #imgDisplay {
+            width: 100%; height: 100%;
+            object-fit: contain; 
+            transform-origin: center center; 
+            pointer-events: none;
+            position: absolute;
+            -webkit-user-select: none; 
+            user-select: none;          
+            /* 優化：啟動硬體加速 */
+            will-change: transform;
+            backface-visibility: hidden;
+        }
+
+        #imgDisplay { display: none; }
+
+        #speed-indicator {
+            position: absolute;
+            top: 10%; left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7); 
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            padding: 10px 24px;
+            border-radius: 30px;
+            display: none; align-items: center; gap: 10px;
+            font-size: 16px; font-weight: 500; color: #fff;
+            pointer-events: none; z-index: 1001;
+        }
+
+        #bottom-controls {
+            position: fixed;
+            bottom: 10px; left: 50%;
+            transform: translateX(-50%);
+            width: 90%; max-width: 900px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 12px 20px; border-radius: 20px;
+            display: flex; flex-direction: column; gap: 6px;
+            opacity: 0; visibility: hidden;
+            transform: translate(-50%, 20px);
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.08);
+            z-index: 1000;
+        }
+
+        body.show-ui #bottom-controls { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+        .progress-wrapper { display: flex; align-items: center; gap: 15px; }
+        #progressRange { flex-grow: 1; height: 5px; cursor: pointer; accent-color: var(--accent-color); }
+        .tools-wrapper { display: flex; align-items: center; justify-content: space-between; }
+        .btn-group { display: flex; align-items: center; gap: 8px; }
+        button { background: transparent; color: white; border: none; cursor: pointer; padding: 8px; display: flex; align-items: center; border-radius: 12px; transition: 0.2s; }
+        button:hover { background: rgba(255,255,255,0.1); }
+        .time-text { font-size: 16px; font-family: 'Consolas', monospace; color: #aaa; }
+        #volumeSlider { width: 90px; height: 6px; accent-color: #fff; cursor: pointer; }
+        .vol-text { font-size: 14px; font-family: 'Consolas', monospace; min-width: 35px; color: #fff; }
+        .zoom-badge { background: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; }
+        
+        #drop-zone {
+            position: fixed; inset: 0; 
+            background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(5px);
+            z-index: 2000; display: none; pointer-events: none;
+            justify-content: center; align-items: center; 
+            font-size: 24px; font-weight: bold; border: 4px dashed #fff;
+            margin: 20px; border-radius: 30px;
+        }
+
+        /* 浮動顯示控制列按鈕：當控制面板隱藏時，在左下角提供一個較小的精緻呼叫入口 */
+        #btn-floating-toggle {
+            position: fixed;
+            bottom: 15px;
+            left: 15px; /* 改為左下角 */
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(15px); 
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border-radius: 50%;
+            padding: 8px; /* 縮小 Padding */
+            z-index: 1005; /* 提升層級，確保高於影片層與其他控制項目 */
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+        }
+        #btn-floating-toggle:hover {
+            background: rgba(255, 62, 62, 0.9); /* 懸停時轉為主題色 */
+            transform: scale(1.1);
+            box-shadow: 0 4px 18px rgba(255, 62, 62, 0.4);
+        }
+        body:not(.show-ui) #btn-floating-toggle {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="show-ui">
+
+    <div id="speed-indicator">
+        <span class="material-icons" id="indicator-icon" style="font-size: 20px;">fast_forward</span>
+        <span id="indicator-text">2X 快進中</span>
+    </div>
+
+    <div id="drop-zone">請放開檔案以開始播放</div>
+
+    <!-- 影片與圖片顯示主容器 -->
+    <div id="video-container">
+        <video id="vPlayer"></video>
+        <img id="imgDisplay">
+    </div>
+
+    <!-- 底部控制面板 -->
+    <div id="bottom-controls">
+        <div class="progress-wrapper">
+            <span class="time-text" id="curTime">00:00</span>
+            <input type="range" id="progressRange" min="0" max="100" value="0">
+            <span class="time-text" id="durTime">00:00</span>
+        </div>
+        <div class="tools-wrapper">
+            <div class="btn-group">
+                <!-- 取代原本的上傳按鈕，改為隱藏控制列按鈕 -->
+                <button id="btnToggleUI" title="隱藏控制面板 (快速鍵: H)"><span class="material-icons" id="iconToggleUI">visibility_off</span></button>
+                <button id="btnPrev" title="倒退 10 秒"><span class="material-icons">replay_10</span></button>
+                <button id="btnPlay" title="播放/暫停"><span class="material-icons" id="iconPlay">play_arrow</span></button>
+                <button id="btnNext" title="快進 10 秒"><span class="material-icons">forward_10</span></button>
+                
+                <div class="btn-group" style="margin-left:10px">
+                    <button id="btnMute" title="靜音"><span class="material-icons" id="iconVol">volume_up</span></button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1">
+                    <span class="vol-text" id="volNum">100%</span>
+                </div>
+            </div>
+            <div class="btn-group">
+                <span class="zoom-badge" id="zoomVal" title="當前縮放比例">1.0X</span>
+                <button id="btnReset" title="重設畫面位置與縮放"><span class="material-icons">center_focus_strong</span></button>
+                <button id="btnRotate" title="旋轉 90 度"><span class="material-icons">rotate_right</span></button>
+                <button id="btnFullscreen" title="全螢幕 (快速鍵: F)"><span class="material-icons" style="font-size: 28px;">fullscreen</span></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 浮動顯示控制列按鈕：放置於最後，確保不會被 video-container 覆蓋，且調整為左下角小尺寸 -->
+    <button id="btn-floating-toggle" title="顯示控制面板 (快速鍵: H)">
+        <span class="material-icons" style="font-size: 18px;">visibility</span>
+    </button>
+
+    <script>
+        const v = document.getElementById('vPlayer');
+        const img = document.getElementById('imgDisplay');
+        const container = document.getElementById('video-container');
+        const progress = document.getElementById('progressRange');
+        const indicator = document.getElementById('speed-indicator');
+        const indicatorText = document.getElementById('indicator-text');
+        const indicatorIcon = document.getElementById('indicator-icon');
+        const dropZone = document.getElementById('drop-zone');
+        const body = document.body;
+        const volNum = document.getElementById('volNum');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const iconVol = document.getElementById('iconVol');
+        const iconPlay = document.getElementById('iconPlay');
+        const btnRotate = document.getElementById('btnRotate');
+        const btnReset = document.getElementById('btnReset');
+        const curTime = document.getElementById('curTime');
+        const durTime = document.getElementById('durTime');
+        const btnToggleUI = document.getElementById('btnToggleUI');
+        const iconToggleUI = document.getElementById('iconToggleUI');
+        const btnFloatingToggle = document.getElementById('btn-floating-toggle');
+
+        let scale = 1, px = 0, py = 0, rotation = 0, isDrag = false, sx, sy, moveCount = 0;
+        let longPressTimer, rewindInterval, isLongPress = false;
+        let isSeek = false, startX, startY, userMutedState = false;
+        
+        // 用於安全處理 HTML5 Video 播放與暫停非同步行為的變數
+        let playPromise = null;
+
+        // 優化：快取容器寬高，避免在 update 中頻繁讀取
+        let containerW = container.clientWidth;
+        let containerH = container.clientHeight;
+        let ticking = false;
+
+        function update() {
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    render();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        }
+
+        function render() {
+            let fitScale = 1;
+            const isVideo = v.style.display !== 'none';
+            const naturalW = isVideo ? v.videoWidth : img.naturalWidth;
+            const naturalH = isVideo ? v.videoHeight : img.naturalHeight;
+
+            if (naturalW && naturalH) {
+                if (rotation % 180 !== 0) {
+                    // 使用快取的寬高進行計算
+                    fitScale = Math.min(containerW / naturalH, containerH / naturalW) / Math.min(containerW / naturalW, containerH / naturalH);
+                }
+            }
+
+            const finalScale = scale * fitScale;
+            // 優化：使用 translate3d 觸發 GPU 加速
+            const transform = `translate3d(${px}px, ${py}px, 0) rotate(${rotation}deg) scale(${finalScale})`;
+            v.style.transform = transform;
+            img.style.transform = transform;
+            document.getElementById('zoomVal').textContent = scale.toFixed(1) + 'X';
+        }
+
+        container.onwheel = (e) => {
+            e.preventDefault();
+            const oldScale = scale;
+            const delta = e.deltaY < 0 ? 1.1 : 0.9;
+            const newScale = Math.min(Math.max(1, scale * delta), 20);
+
+            if (newScale !== oldScale) {
+                const mouseX = e.clientX, mouseY = e.clientY;
+                const rect = container.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2, centerY = rect.top + rect.height / 2;
+                px = mouseX - centerX - (mouseX - centerX - px) * (newScale / oldScale);
+                py = mouseY - centerY - (mouseY - centerY - py) * (newScale / oldScale);
+                scale = newScale;
+                if (scale <= 1) { scale = 1; px = 0; py = 0; }
+                update();
+            }
+        };
+
+        function updateVolumeUI() {
+            const val = Math.round(v.volume * 100);
+            volNum.textContent = v.muted ? "Mute" : val + "%";
+            volumeSlider.value = v.muted ? 0 : v.volume;
+            iconVol.textContent = (v.muted || v.volume === 0) ? 'volume_off' : (v.volume < 0.5 ? 'volume_down' : 'volume_up');
+        }
+
+        volumeSlider.onwheel = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            const step = 0.05;
+            v.volume = Math.max(0, Math.min(1, v.volume + (e.deltaY < 0 ? step : -step)));
+            v.muted = (v.volume === 0);
+            updateVolumeUI();
+        };
+
+        btnMute.onclick = (e) => { e.stopPropagation(); v.muted = !v.muted; updateVolumeUI(); };
+        volumeSlider.oninput = (e) => { v.volume = e.target.value; v.muted = (v.volume === 0); updateVolumeUI(); };
+
+        // 封裝安全播放與暫停的函式，避開中斷未完成 Promise 的 AbortError
+        function safePlay() {
+            playPromise = v.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    // 忽略被 pause 中斷產生的 DOMException / AbortError
+                    console.log("Play interrupted or prevented: ", error.message);
+                });
+            }
+        }
+
+        function safePause() {
+            if (playPromise !== undefined && playPromise !== null) {
+                playPromise.then(() => {
+                    v.pause();
+                }).catch(() => {
+                    // 若 play 失敗，依然嘗試呼叫 pause
+                    v.pause();
+                });
+            } else {
+                v.pause();
+            }
+        }
+
+        container.addEventListener('mousedown', (e) => {
+            moveCount = 0; isLongPress = false;
+            startX = e.clientX; startY = e.clientY;
+            const rect = container.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            if (v.style.display !== 'none' && !v.paused) {
+                userMutedState = v.muted;
+                if (clickX < rect.width * 0.15) {
+                    longPressTimer = setTimeout(() => {
+                        isLongPress = true; 
+                        safePause();
+                        indicatorIcon.textContent = "fast_rewind"; indicatorText.textContent = "快速倒退中";
+                        indicator.style.display = "flex";
+                        rewindInterval = setInterval(() => { v.currentTime -= 0.1; }, 50);
+                    }, 300);
+                } else if (clickX > rect.width * 0.85) {
+                    longPressTimer = setTimeout(() => {
+                        isLongPress = true; v.playbackRate = 2.0;
+                        indicatorIcon.textContent = "fast_forward"; indicatorText.textContent = "2X 快速播放中";
+                        indicator.style.display = "flex";
+                    }, 300);
+                }
+            }
+            if(scale > 1) { isDrag = true; sx = e.clientX - px; sy = e.clientY - py; }
+        });
+
+        window.addEventListener('mouseup', () => {
+            clearTimeout(longPressTimer);
+            clearInterval(rewindInterval);
+            if (isLongPress) {
+                v.playbackRate = 1.0;
+                v.muted = userMutedState;
+                indicator.style.display = "none";
+                if (v.paused && v.readyState >= 2) safePlay();
+                iconPlay.textContent = 'pause';
+                updateVolumeUI();
+            }
+            isDrag = false;
+            setTimeout(() => { isLongPress = false; }, 50);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            moveCount++;
+            const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
+            if (dist > 10) clearTimeout(longPressTimer);
+            if(isDrag) { px = e.clientX - sx; py = e.clientY - sy; update(); }
+        });
+
+        container.addEventListener('click', () => { 
+            if (!isLongPress && moveCount < 5 && v.style.display !== 'none') togglePlay(); 
+        });
+
+        window.addEventListener('dragover', (e) => { e.preventDefault(); if (e.dataTransfer.types.includes('Files')) dropZone.style.display = 'flex'; });
+        window.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) dropZone.style.display = 'none'; });
+        window.addEventListener('drop', (e) => { e.preventDefault(); dropZone.style.display = 'none'; if (e.dataTransfer.files.length > 0) loadFile(e.dataTransfer.files[0]); });
+
+        function loadFile(file) {
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            if (file.type.startsWith('video/')) {
+                img.style.display = 'none';
+                v.style.display = 'block';
+                v.src = url; 
+                v.onloadedmetadata = () => { 
+                    durTime.textContent = fmt(v.duration); 
+                    update(); 
+                };
+                safePlay();
+                iconPlay.textContent = 'pause';
+            } else if (file.type.startsWith('image/')) {
+                safePause();
+                v.style.display = 'none';
+                img.style.display = 'block';
+                img.src = url;
+                img.onload = update; 
+                iconPlay.textContent = 'play_arrow';
+                curTime.textContent = "IMG";
+                durTime.textContent = "IMG";
+                progress.value = 0;
+            }
+        }
+
+        function togglePlay() {
+            if (v.paused) { safePlay(); iconPlay.textContent='pause'; }
+            else { safePause(); iconPlay.textContent='play_arrow'; }
+        }
+
+        btnPrev.onclick = (e) => { e.stopPropagation(); v.currentTime -= 10; };
+        btnNext.onclick = (e) => { e.stopPropagation(); v.currentTime += 10; };
+        btnPlay.onclick = (e) => { e.stopPropagation(); if(v.style.display !== 'none') togglePlay(); };
+        
+        btnRotate.onclick = (e) => {
+            e.stopPropagation();
+            rotation = (rotation + 90) % 360;
+            update();
+        };
+
+        btnReset.onclick = (e) => { 
+            if(e) e.stopPropagation(); 
+            scale = 1; px = 0; py = 0; rotation = 0; 
+            update(); 
+        };
+
+        btnFullscreen.onclick = (e) => { e.stopPropagation(); if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); };
+
+        /* 切換控制列顯示與隱藏 */
+        function toggleUI(e) {
+            if (e) e.stopPropagation();
+            const isCurrentlyShown = body.classList.contains('show-ui');
+            if (isCurrentlyShown) {
+                body.classList.remove('show-ui');
+            } else {
+                body.classList.add('show-ui');
+            }
+        }
+
+        btnToggleUI.onclick = toggleUI;
+        btnFloatingToggle.onclick = toggleUI;
+
+        const fmt = (s) => isNaN(s) ? "00:00" : `${Math.floor(s/60).toString().padStart(2,'0')}:${Math.floor(s%60).toString().padStart(2,'0')}`;
+        v.ontimeupdate = () => { if(!isSeek && v.style.display !== 'none') { progress.value = (v.currentTime / v.duration) * 100 || 0; curTime.textContent = fmt(v.currentTime); } };
+        v.onended = () => { iconPlay.textContent = 'play_arrow'; };
+
+        progress.oninput = () => { isSeek = true; };
+        progress.onchange = () => { if(v.style.display !== 'none') v.currentTime = (progress.value / 100) * v.duration; isSeek = false; };
+
+        window.onkeydown = (e) => {
+            if(e.code === "Space") { e.preventDefault(); if(v.style.display !== 'none') togglePlay(); }
+            if(e.code === "ArrowRight") v.currentTime += 10;
+            if(e.code === "ArrowLeft") v.currentTime -= 10;
+            if(e.code === "KeyF") btnFullscreen.click();
+            if(e.code === "KeyR") btnRotate.click();
+            if(e.code === "KeyZ") btnReset.click(); 
+            if(e.code === "KeyH") toggleUI(); // 快速鍵 H：手動隱藏/顯示控制列
+            
+            // 新增鍵盤上下鍵音量控制，每次微調 5%
+            if(e.code === "ArrowUp") {
+                e.preventDefault(); // 避免網頁預設滾動
+                v.volume = Math.min(1, v.volume + 0.05);
+                v.muted = (v.volume === 0);
+                updateVolumeUI();
+            }
+            if(e.code === "ArrowDown") {
+                e.preventDefault(); // 避免網頁預設滾動
+                v.volume = Math.max(0, v.volume - 0.05);
+                v.muted = (v.volume === 0);
+                updateVolumeUI();
+            }
+        };
+        
+        window.addEventListener('resize', () => {
+            containerW = container.clientWidth;
+            containerH = container.clientHeight;
+            update();
+        });
+    </script>
+</body>
+</html>
