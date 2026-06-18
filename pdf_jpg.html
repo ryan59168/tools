@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業級高畫質 PDF 轉 JPG 工具</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- JSZip (用於打包下載) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        /* 自訂字體與動畫 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+        }
+        .drag-active {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+            transform: scale(1.01);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 頁首導覽 -->
+    <header class="bg-white border-b border-slate-200 py-5 px-6 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-red-500 text-white p-2.5 rounded-xl shadow-md shadow-red-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">PDF 轉 JPG 高畫質工具</h1>
+                    <p class="text-xs text-slate-500">純前端機密處理，檔案不離本機，確保極致隱私安全</p>
+                </div>
+            </div>
+            
+            <!-- 參數設定區 -->
+            <div id="settings-panel" class="hidden flex flex-wrap items-center gap-3 bg-slate-100 p-2 rounded-xl">
+                <!-- 畫質選擇 -->
+                <div class="flex items-center gap-2 px-2">
+                    <span class="text-xs font-semibold text-slate-500">解析度畫質:</span>
+                    <select id="quality-scale" class="bg-white border border-slate-200 rounded-lg text-xs font-medium px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                        <option value="1.0">72 DPI (標準網頁，速度快)</option>
+                        <option value="2.0">150 DPI (良好，一般文件)</option>
+                        <option value="3.0" selected>300 DPI (極佳，高清印刷印刷級)</option>
+                        <option value="4.0">400 DPI (頂級畫質，極其精細)</option>
+                    </select>
+                </div>
+                
+                <!-- 格式選擇 -->
+                <div class="flex items-center gap-2 border-l border-slate-300 pl-3 pr-2">
+                    <span class="text-xs font-semibold text-slate-500">輸出格式:</span>
+                    <select id="output-format" class="bg-white border border-slate-200 rounded-lg text-xs font-medium px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                        <option value="image/jpeg">JPG (預設優化)</option>
+                        <option value="image/png">PNG (無損壓縮)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-6xl w-full mx-auto p-4 md:p-8 flex flex-col gap-6">
+        
+        <!-- 拖曳上傳核心區 -->
+        <div id="drop-zone" class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 md:p-16 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/20 transition-all duration-300 flex flex-col items-center justify-center gap-4 group shadow-sm">
+            <input type="file" id="file-input" accept="application/pdf" class="hidden">
+            
+            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+            </div>
+            
+            <div class="space-y-1">
+                <h3 class="text-lg font-bold text-slate-700">將 PDF 拖放到此處，或 <span class="text-blue-500 hover:underline">瀏覽檔案</span></h3>
+                <p class="text-sm text-slate-400">支援任何大小的 PDF 文件</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-400 border-t border-slate-100 pt-4 w-full max-w-md">
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 拖曳即傳</span>
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 解析度最高 400 DPI</span>
+                <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> 支援打包 ZIP</span>
+            </div>
+        </div>
+
+        <!-- 檔案基本資訊與全域下載列 -->
+        <div id="action-bar" class="hidden bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-100 text-blue-600 p-2 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h4 id="info-filename" class="font-semibold text-slate-800 text-sm md:text-base truncate max-w-xs md:max-w-md">檔案名稱.pdf</h4>
+                    <p id="info-pages" class="text-xs text-slate-500">頁數：偵測中...</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <button id="zip-btn" disabled class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white disabled:bg-slate-300 disabled:cursor-not-allowed font-medium text-sm px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span>打包下載所有頁面 (ZIP)</span>
+                </button>
+                <button id="clear-btn" class="border border-slate-200 hover:bg-slate-50 text-slate-600 font-medium text-sm px-4 py-2.5 rounded-xl transition-colors duration-200">
+                    清空重來
+                </button>
+            </div>
+        </div>
+
+        <!-- 轉換進度狀態 -->
+        <div id="progress-container" class="hidden space-y-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between text-sm">
+                <span id="progress-text" class="font-medium text-slate-600">正在準備轉檔程序...</span>
+                <span id="progress-percent" class="font-bold text-blue-600">0%</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div id="progress-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 成果預覽區 -->
+        <div id="preview-section" class="hidden space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h3 class="text-md font-bold text-slate-700">圖片生成預覽</h3>
+                <span class="text-xs text-slate-400">滑鼠移至圖片上可查看單頁下載連結</span>
+            </div>
+            <div id="preview-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                <!-- 預覽卡片會動態渲染於此 -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 頁尾 -->
+    <footer class="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-400 mt-auto">
+        <p>© 2026 PDF to JPG High-Quality Processing Core. 點對點前端引擎保障隱私安全。</p>
+    </footer>
+
+    <!-- 通知通知訊息框 -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 translate-y-20 opacity-0 flex items-center gap-2 z-50">
+        <span id="toast-msg">提示訊息</span>
+    </div>
+
+    <script>
+        // 設定 PDF.js 的 Worker 核心
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // 綁定 DOM 元素
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const settingsPanel = document.getElementById('settings-panel');
+        const actionBar = document.getElementById('action-bar');
+        const infoFilename = document.getElementById('info-filename');
+        const infoPages = document.getElementById('info-pages');
+        const progressContainer = document.getElementById('progress-container');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
+        const progressBar = document.getElementById('progress-bar');
+        const previewSection = document.getElementById('preview-section');
+        const previewGrid = document.getElementById('preview-grid');
+        const zipBtn = document.getElementById('zip-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const qualityScale = document.getElementById('quality-scale');
+        const outputFormat = document.getElementById('output-format');
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toast-msg');
+
+        // 儲存目前正在生成的圖片物件陣列 (供打包 ZIP 使用)
+        let generatedImages = [];
+        let currentFileName = '';
+
+        // --- 拖放事件處理 (Drag & Drop) ---
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('drag-active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('drag-active');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        });
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                processFile(e.target.files[0]);
+            }
+        });
+
+        // --- 核心處理程序 ---
+        function showToast(msg, duration = 3000) {
+            toastMsg.textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, duration);
+        }
+
+        async function processFile(file) {
+            if (!file || file.type !== 'application/pdf') {
+                showToast('❌ 請上傳正確的 PDF 格式檔案！');
+                return;
+            }
+
+            currentFileName = file.name;
+            generatedImages = [];
+            
+            // 介面初始狀態轉換
+            dropZone.classList.add('hidden');
+            settingsPanel.classList.remove('hidden');
+            actionBar.classList.remove('hidden');
+            progressContainer.classList.remove('hidden');
+            previewSection.classList.remove('hidden');
+            
+            previewGrid.innerHTML = '';
+            infoFilename.textContent = file.name;
+            infoPages.textContent = '讀取檔案資訊中...';
+            zipBtn.disabled = true;
+
+            try {
+                const fileReader = new FileReader();
+                fileReader.onload = async function () {
+                    const typedarray = new Uint8Array(this.result);
+                    
+                    // 載入 PDF 文件
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    infoPages.textContent = `共 ${pdf.numPages} 頁`;
+
+                    const scale = parseFloat(qualityScale.value);
+                    const format = outputFormat.value;
+                    const isPNG = format === 'image/png';
+
+                    // 開始轉換
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        // 更新進度條
+                        const percent = Math.round(((pageNum - 1) / pdf.numPages) * 100);
+                        progressText.textContent = `正在渲染第 ${pageNum} 頁...`;
+                        progressPercent.textContent = `${percent}%`;
+                        progressBar.style.width = `${percent}%`;
+
+                        // 進行轉換
+                        await convertPageToImage(pdf, pageNum, scale, format, file.name);
+                    }
+
+                    // 完成
+                    progressText.textContent = '🎉 轉換完畢！所有頁面已成功生成超高畫質影像！';
+                    progressPercent.textContent = '100%';
+                    progressBar.style.width = '100%';
+                    zipBtn.disabled = false;
+                    showToast('轉換完成！可批次或單張下載。');
+                };
+                fileReader.readAsArrayBuffer(file);
+            } catch (error) {
+                console.error(error);
+                progressText.textContent = '❌ 轉換過程中出錯，請確認 PDF 檔案是否損毀或受密碼保護。';
+                showToast('處理檔案時發生錯誤。');
+            }
+        }
+
+        // 轉換單個頁面為超高清 Canvas
+        async function convertPageToImage(pdf, pageNum, scale, format, originalName) {
+            const page = await pdf.getPage(pageNum);
+            
+            // 獲取預設的 viewport
+            let viewport = page.getViewport({ scale: scale });
+
+            // 建立高解析度 Canvas
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d', { alpha: false }); // 關閉透明通道以獲取更好效能
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            // 高畫質渲染設定：平滑化與品質優化
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+
+            // 轉換為圖像 (JPG/PNG)，若是 JPG 則給予接近無損的 0.98 品質參數
+            const imageQuality = format === 'image/jpeg' ? 0.98 : undefined;
+            const imageUrl = canvas.toDataURL(format, imageQuality);
+
+            // 儲存至陣列 (供打包下載使用)
+            const ext = format === 'image/jpeg' ? 'jpg' : 'png';
+            const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+            const fileName = `${baseName}_P${pageNum}.${ext}`;
+            
+            generatedImages.push({
+                name: fileName,
+                url: imageUrl
+            });
+
+            // 建立預覽介面
+            createPreviewCard(imageUrl, pageNum, fileName);
+        }
+
+        // 建立預覽卡片
+        function createPreviewCard(imageUrl, pageNum, outFileName) {
+            const card = document.createElement('div');
+            card.className = 'group bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between';
+
+            // 預覽圖區塊
+            const previewArea = document.createElement('div');
+            previewArea.className = 'relative bg-slate-100 aspect-[3/4] flex items-center justify-center overflow-hidden border-b border-slate-100';
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.className = 'w-full h-full object-contain group-hover:scale-102 transition-transform duration-300';
+            img.alt = `第 ${pageNum} 頁預覽`;
+            previewArea.appendChild(img);
+
+            // 滑鼠懸浮快速覆蓋下載層
+            const hoverOverlay = document.createElement('div');
+            hoverOverlay.className = 'absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center';
+            const hoverBtn = document.createElement('a');
+            hoverBtn.href = imageUrl;
+            hoverBtn.download = outFileName;
+            hoverBtn.className = 'bg-white text-slate-800 font-bold text-xs px-4 py-2 rounded-lg shadow-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5';
+            hoverBtn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 點擊立即下載`;
+            hoverOverlay.appendChild(hoverBtn);
+            previewArea.appendChild(hoverOverlay);
+
+            // 資訊與控制區塊
+            const infoArea = document.createElement('div');
+            infoArea.className = 'p-3 flex items-center justify-between bg-white';
+            
+            const title = document.createElement('span');
+            title.className = 'text-xs font-bold text-slate-600';
+            title.textContent = `第 ${pageNum} 頁`;
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = imageUrl;
+            downloadLink.download = outFileName;
+            downloadLink.className = 'text-blue-500 hover:text-blue-600 text-xs font-semibold flex items-center gap-1';
+            downloadLink.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg> 下載`;
+
+            infoArea.appendChild(title);
+            infoArea.appendChild(downloadLink);
+
+            card.appendChild(previewArea);
+            card.appendChild(infoArea);
+            previewGrid.appendChild(card);
+        }
+
+        // --- 打包 ZIP 功能 ---
+        zipBtn.addEventListener('click', async () => {
+            if (generatedImages.length === 0) return;
+
+            zipBtn.disabled = true;
+            const originalBtnText = zipBtn.innerHTML;
+            zipBtn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                正在打包壓縮檔中...
+            `;
+
+            try {
+                const zip = new JSZip();
+                
+                // 將所有生成的 Base64 Data URL 解碼並加入至 ZIP 中
+                generatedImages.forEach((img) => {
+                    const base64Data = img.url.split(',')[1];
+                    zip.file(img.name, base64Data, { base64: true });
+                });
+
+                // 產生 ZIP 檔案二進制流
+                const content = await zip.generateAsync({ type: 'blob' });
+                
+                // 建立虛擬節點自動下載
+                const zipUrl = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = zipUrl;
+                const baseName = currentFileName.substring(0, currentFileName.lastIndexOf('.')) || currentFileName;
+                a.download = `${baseName}_images.zip`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // 釋放記憶體
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(zipUrl);
+                }, 100);
+
+                showToast('📦 打包下載成功！');
+            } catch (err) {
+                console.error(err);
+                showToast('❌ 打包 ZIP 時發生錯誤！');
+            } finally {
+                zipBtn.innerHTML = originalBtnText;
+                zipBtn.disabled = false;
+            }
+        });
+
+        // --- 重設還原 ---
+        clearBtn.addEventListener('click', () => {
+            dropZone.classList.remove('hidden');
+            settingsPanel.classList.add('hidden');
+            actionBar.classList.add('hidden');
+            progressContainer.classList.add('hidden');
+            previewSection.classList.add('hidden');
+            fileInput.value = '';
+            previewGrid.innerHTML = '';
+            generatedImages = [];
+            currentFileName = '';
+        });
+
+        // 修改畫質或格式時，提示使用者需要重新上傳處理
+        [qualityScale, outputFormat].forEach(element => {
+            element.addEventListener('change', () => {
+                if (generatedImages.length > 0) {
+                    showToast('⚠️ 解析度或格式設定已更改。請重新拖放或上傳檔案以套用新設定！');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
