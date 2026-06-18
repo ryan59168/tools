@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 工具導航集</title>
+
+<!-- ============================================================
+  ✏️  【新增 / 刪除 AI 工具】請在這裡修改，不需動其他地方
+  
+  每一個 {} 區塊代表一個按鈕，格式說明：
+    name     → 顯示名稱
+    url      → 網址（完整 https:// 開頭）
+    desc     → 一行簡介
+    category → 分類（對話 / 搜尋 / 圖像 / 影片 / 音樂 / 寫作 / 程式 / 其他）
+    color    → 按鈕強調色（可自訂 hex，或直接用下方預設）
+
+  ✏️  要新增：複製一個 {} 區塊，貼在最後一項的 , 後面
+  ✏️  要刪除：把整個 {} 區塊（含前面的逗號）刪掉
+  ✏️  要改順序：直接移動 {} 區塊的位置
+============================================================ -->
+<script>
+const AI_TOOLS = [
+  // ── 國外頂尖對話 Chat ──────────────────────────────────────
+  {
+    name: "Claude",
+    url: "https://claude.ai",
+    desc: "Anthropic 出品，擅長長文分析、邏輯推理與結構化寫作",
+    category: "對話",
+    color: "#C96442"
+  },
+  {
+    name: "ChatGPT",
+    url: "https://chatgpt.com",
+    desc: "OpenAI 旗艦對話模型，全能型 AI 助手",
+    category: "對話",
+    color: "#10A37F"
+  },
+  {
+    name: "Gemini",
+    url: "https://gemini.google.com",
+    desc: "Google 多模態 AI 助理，深度整合 Google 生態系",
+    category: "對話",
+    color: "#4285F4"
+  },
+  {
+    name: "Copilot",
+    url: "https://copilot.microsoft.com",
+    desc: "Microsoft 整合 GPT-4 與 Office 生態的辦公助理",
+    category: "對話",
+    color: "#0078D4"
+  },
+  {
+    name: "Grok",
+    url: "https://grok.com",
+    desc: "xAI 出品，深度整合 X (Twitter) 即時社群資訊",
+    category: "對話",
+    color: "#15181C"
+  },
+
+  // ── 中國主流對話與搜尋 Chat & Search ─────────────────────────
+  {
+    name: "DeepSeek",
+    url: "https://www.deepseek.com",
+    desc: "引領開源潮流的超強推理模型，極高性價比與程式實力",
+    category: "對話",
+    color: "#0D6EFD"
+  },
+  {
+    name: "Kimi 智能助手",
+    url: "https://kimi.moonshot.cn",
+    desc: "月之暗面出品，主打超長上下文無損壓縮，擅長讀長文與文獻",
+    category: "搜尋",
+    color: "#FF5E00"
+  },
+  {
+    name: "豆包 (Doubao)",
+    url: "https://www.doubao.com",
+    desc: "字節跳動旗下的旗艦 AI 助手，整合 Seedance 多模態能力",
+    category: "對話",
+    color: "#3A5BFD"
+  },
+  {
+    name: "通義千問 (Qwen)",
+    url: "https://qianwen.aliyun.com",
+    desc: "阿里雲開源大模型官方助手，綜合中英文能力表現頂尖",
+    category: "對話",
+    color: "#6F42C1"
+  },
+  {
+    name: "騰訊元寶",
+    url: "https://yuanbao.tencent.com",
+    desc: "騰訊出品，微信公眾號與高品質內容生態的獨家搜尋優勢",
+    category: "對話",
+    color: "#00C39A"
+  },
+  {
+    name: "秘塔 AI 搜索",
+    url: "https://metaso.cn",
+    desc: "無廣告的專業學術與結構化 AI 搜索引擎",
+    category: "搜尋",
+    color: "#1B2A47"
+  },
+  {
+    name: "智譜清言",
+    url: "https://chatglm.cn",
+    desc: "中科院背景智譜 AI 出品，功能完善的辦公與程式助手",
+    category: "對話",
+    color: "#3B2FD9"
+  },
+
+  // ── 國外搜尋 ───────────────────────────────────────────────
+  {
+    name: "Perplexity",
+    url: "https://www.perplexity.ai",
+    desc: "領先的 AI 搜尋引擎，結構化回答並附帶清晰引用來源",
+    category: "搜尋",
+    color: "#20B2AA"
+  },
+  {
+    name: "You.com",
+    url: "https://you.com",
+    desc: "專注於生產力的可自訂多步驟 AI 搜尋與研究助手",
+    category: "搜尋",
+    color: "#7C3AED"
+  },
+
+  // ── 圖像生成 ───────────────────────────────────────────────
+  {
+    name: "Midjourney",
+    url: "https://www.midjourney.com",
+    desc: "全球頂尖的 AI 藝術感圖像生成工具",
+    category: "圖像",
+    color: "#FF6B35"
+  },
+  {
+    name: "即夢 AI (Dreamina)",
+    url: "https://jimeng.co",
+    desc: "抖音旗下 AI 圖像與影片生成工具，中文提示詞理解力極佳",
+    category: "圖像",
+    color: "#E11D48"
+  },
+  {
+    name: "DALL·E 3",
+    url: "https://openai.com/dall-e-3",
+    desc: "OpenAI 圖像生成模型，與 ChatGPT 完美整合",
+    category: "圖像",
+    color: "#FF5C8A"
+  },
+  {
+    name: "Stable Diffusion",
+    url: "https://stability.ai",
+    desc: "強大且高度客製化的開源圖像生成，支援本地部署",
+    category: "圖像",
+    color: "#8B5CF6"
+  },
+  {
+    name: "Adobe Firefly",
+    url: "https://firefly.adobe.com",
+    desc: "Adobe 官方商業安全創意工具，無版權爭議",
+    category: "圖像",
+    color: "#FF0000"
+  },
+  {
+    name: "Ideogram",
+    url: "https://ideogram.ai",
+    desc: "極佳的排版美學，最擅長圖片內英文文字精準生成",
+    category: "圖像",
+    color: "#F59E0B"
+  },
+
+  // ── 影片生成 ───────────────────────────────────────────────
+  {
+    name: "Sora",
+    url: "https://sora.com",
+    desc: "OpenAI 出品的劃時代高真實度文字生成影片模型",
+    category: "影片",
+    color: "#6366F1"
+  },
+  {
+    name: "Runway Gen-3",
+    url: "https://runwayml.com",
+    desc: "電影級 AI 影片生成、物理模擬與專業特效編輯平台",
+    category: "影片",
+    color: "#EC4899"
+  },
+  {
+    name: "可靈 AI (Kling)",
+    url: "https://klingai.com",
+    desc: "快手旗下高品質影片生成模型，動作幅度與流暢度驚豔",
+    category: "影片",
+    color: "#EF4444"
+  },
+
+  // ── 寫作與簡報 ──────────────────────────────────────────────
+  {
+    name: "Notion AI",
+    url: "https://www.notion.so",
+    desc: "筆記工作流整合，一鍵進行擴寫、潤色與提取行動清單",
+    category: "寫作",
+    color: "#111111"
+  },
+  {
+    name: "Gamma",
+    url: "https://gamma.app",
+    desc: "輸入大綱快速生成排版精美的網頁、簡報與文件",
+    category: "寫作",
+    color: "#7E22CE"
+  },
+
+  // ── 程式開發 ───────────────────────────────────────────────
+  {
+    name: "GitHub Copilot",
+    url: "https://github.com/features/copilot",
+    desc: "最強 IDE 程式碼補全插件，微軟與 GitHub 共同開發",
+    category: "程式",
+    color: "#24292E"
+  },
+  {
+    name: "Cursor",
+    url: "https://cursor.com",
+    desc: "專為 AI 設計的新世代編輯器，理解完整專案代碼庫",
+    category: "程式",
+    color: "#0EA5E9"
+  },
+
+  // ── 音樂創作 ───────────────────────────────────────────────
+  {
+    name: "Suno",
+    url: "https://suno.com",
+    desc: "文生音樂神級工具，能自動生成人聲歌詞與高音質編曲",
+    category: "音樂",
+    color: "#F97316"
+  },
+  {
+    name: "Udio",
+    url: "https://www.udio.com",
+    desc: "高解析度 AI 音樂平台，音質飽滿且細節還原度極高",
+    category: "音樂",
+    color: "#A855F7"
+  }
+];
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* 設計系統變數 - 支援深淺色主題 */
+  :root {
+    --font-primary: 'Plus Jakarta Sans', 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+    
+    /* 預設淺色主題 */
+    --bg: #F8FAFC;
+    --surface: #FFFFFF;
+    --surface-hover: #F1F5F9;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+    --text: #0F172A;
+    --muted: #64748B;
+    --accent: #4F46E5;
+    --shadow: rgba(148, 163, 184, 0.12);
+    --shadow-hover: rgba(148, 163, 184, 0.25);
+    --radius: 16px;
+    --tag-bg: #F1F5F9;
+
+    /* 說明視窗專用色 */
+    --tutorial-bg: #FFFDF5;
+    --tutorial-border: #FCE8B2;
+    --tutorial-accent: #B45309;
+    --code-bg: #F1F5F9;
+    --code-border: #E2E8F0;
+    --code-text: #0F172A;
+  }
+
+  /* 深色主題變數 */
+  [data-theme="dark"] {
+    --bg: #0F172A;
+    --surface: #1E293B;
+    --surface-hover: #334155;
+    --border: #334155;
+    --border-strong: #475569;
+    --text: #F8FAFC;
+    --muted: #94A3B8;
+    --accent: #818CF8;
+    --shadow: rgba(0, 0, 0, 0.3);
+    --shadow-hover: rgba(0, 0, 0, 0.5);
+    --tag-bg: #334155;
+
+    /* 說明視窗專用色 */
+    --tutorial-bg: #1B1E1A;
+    --tutorial-border: #2D3E24;
+    --tutorial-accent: #34D399;
+    --code-bg: #0F172A;
+    --code-border: #334155;
+    --code-text: #F1F5F9;
+  }
+
+  body {
+    font-family: var(--font-primary);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 20px 80px;
+    transition: background-color 0.3s, color 0.3s;
+  }
+
+  /* 頂部操作列 */
+  .top-actions {
+    max-width: 1200px;
+    margin: 0 auto 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .action-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px var(--shadow);
+  }
+
+  .action-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+  }
+
+  /* 頁首標題 */
+  header {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+
+  header h1 {
+    font-size: clamp(2rem, 5vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--text) 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+  }
+
+  header p {
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+
+  /* 搜尋與篩選區域容器 */
+  .controls-container {
+    max-width: 1200px;
+    margin: 0 auto 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+  }
+
+  /* 搜尋輸入框 */
+  .search-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 14px 20px 14px 45px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: all 0.25s;
+    box-shadow: 0 4px 12px var(--shadow);
+  }
+
+  .search-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+    font-size: 1.1rem;
+  }
+
+  /* 分類篩選列 */
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .filter-btn {
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 0.88rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px var(--shadow);
+  }
+
+  .filter-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+  }
+
+  .filter-btn.active {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+    font-weight: 600;
+  }
+
+  .filter-count {
+    font-size: 0.75rem;
+    background: rgba(128, 128, 128, 0.15);
+    padding: 1px 6px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .filter-btn.active .filter-count {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* ── 卡片格線系統 ── */
+  .grid-title {
+    max-width: 1200px;
+    margin: 30px auto 15px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto 40px;
+  }
+
+  /* 卡片主體樣式 */
+  .card {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s, border-color 0.25s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 10px var(--shadow);
+  }
+
+  /* 漸變流光裝飾條 */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-color, var(--accent)), rgba(255,255,255,0.3));
+    opacity: 0.8;
+    transition: opacity 0.2s;
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px var(--shadow-hover);
+    border-color: var(--border-strong);
+  }
+
+  .card:hover::before {
+    opacity: 1;
+  }
+
+  .card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .card-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .card-tag {
+    font-size: 0.72rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--tag-bg);
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .card-desc {
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.6;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
+
+  /* 釘選最愛按鈕 */
+  .favorite-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 1.1rem;
+    transition: transform 0.2s, color 0.2s;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .favorite-btn:hover {
+    transform: scale(1.2);
+    color: #EF4444;
+  }
+
+  .favorite-btn.active {
+    color: #EF4444;
+  }
+
+  .card-arrow {
+    font-size: 0.95rem;
+    color: var(--muted);
+    transition: transform 0.25s ease;
+  }
+
+  .card:hover .card-arrow {
+    color: var(--text);
+    transform: translate(3px, -3px);
+  }
+
+  /* 無結果畫面 */
+  .no-results {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  
+  .no-results i {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  /* 常用釘選區塊標題 */
+  #pinnedSection {
+    display: none;
+    margin-bottom: 30px;
+  }
+
+  #pinnedSection.visible {
+    display: block;
+  }
+
+  /* ── 互動式說明彈窗 (Modal) ── */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    padding: 20px;
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .modal-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 750px;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    transform: scale(0.95);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .modal-overlay.active .modal-container {
+    transform: scale(1);
+  }
+
+  .modal-header {
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 10;
+  }
+
+  .modal-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal-close {
+    background: var(--tag-bg);
+    border: none;
+    color: var(--text);
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .modal-close:hover {
+    background: var(--border-strong);
+  }
+
+  .modal-content {
+    padding: 24px;
+  }
+
+  /* 說明面板內部組件 */
+  .tut-hero {
+    background: var(--tutorial-bg);
+    border: 1.5px solid var(--tutorial-border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+    color: var(--code-text);
+  }
+
+  .tut-hero h3 {
+    font-size: 1.1rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tut-hero p {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    opacity: 0.9;
+  }
+
+  .tut-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .tut-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .step {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .step:last-child { margin-bottom: 0; }
+
+  .step-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--tag-bg);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    flex-shrink: 0;
+  }
+
+  .step-body { flex: 1; font-size: 0.88rem; line-height: 1.6; }
+
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--code-text);
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: 8px;
+  }
+
+  .code-block .hl-key { color: var(--accent); font-weight: 600; }
+  .code-block .hl-str { color: #059669; }
+  .code-block .hl-cmt { color: var(--muted); font-style: italic; }
+
+  .cat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    margin-top: 10px;
+  }
+
+  .cat-table th, .cat-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cat-table th {
+    background: var(--tag-bg);
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .cat-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--tag-bg);
+    border: 1px solid var(--border-strong);
+    font-family: monospace;
+  }
+
+  footer {
+    text-align: center;
+    margin-top: 60px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+    padding-top: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .top-actions {
+      justify-content: center;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- 頂部切換動作 -->
+<div class="top-actions">
+  <button class="action-btn" id="themeToggle" aria-label="切換深淺色主題">
+    <span id="themeIcon">🌓</span> <span id="themeText">切換主題</span>
+  </button>
+  <button class="action-btn" id="helpBtn">
+    <span>📖</span> <span>自訂說明</span>
+  </button>
+</div>
+
+<header>
+  <h1>AI 工具集</h1>
+  <p>點擊即可直接開啟，或使用愛心釘選常用工具</p>
+</header>
+
+<div class="controls-container">
+  <!-- 搜尋框 -->
+  <div class="search-wrapper">
+    <span class="search-icon">🔍</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="輸入關鍵字、名稱或介紹...">
+  </div>
+
+  <!-- 分類篩選列 -->
+  <div class="filter-bar" id="filterBar"></div>
+</div>
+
+<!-- 釘選區塊 -->
+<div id="pinnedSection">
+  <div class="grid-title">📌 我的常用釘選</div>
+  <div class="grid" id="pinnedGrid"></div>
+</div>
+
+<!-- 所有工具區塊 -->
+<div>
+  <div class="grid-title" id="mainGridTitle">✨ 所有 AI 工具</div>
+  <div class="grid" id="mainGrid"></div>
+</div>
+
+<!-- 浮動說明視窗 (Modal) -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-container">
+    <div class="modal-header">
+      <div class="modal-title">📖 使用說明與自訂教學</div>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="tut-hero">
+        <h3>💡 如何在電腦上新增/刪除工具？</h3>
+        <p>這個頁面完全是<strong>靜態且免資料庫</strong>的！您只需要在電腦上用任何文字編輯器（如記事本、VS Code）開啟本 <strong>ai-links.html</strong> 檔案，尋找頂部的 <code>AI_TOOLS</code> 陣列，直接修改該 JavaScript 物件即可，無需編寫任何複雜程式碼。</p>
+      </div>
+
+      <!-- Add -->
+      <div class="tut-section">
+        <div class="tut-section-title">➕ 新增 AI 工具按鈕</div>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            用文字編輯器開啟檔案，在最前方找到 <code>const AI_TOOLS = [</code> 一行。
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            在陣列結尾的 <code>}</code> 後方，補上一個逗號 <code>,</code>，並貼上以下格式：
+            <div class="code-block">{
+  <span class="hl-key">name</span>: <span class="hl-str">"工具名稱"</span>,
+  <span class="hl-key">url</span>:  <span class="hl-str">"https://工具網址"</span>,
+  <span class="hl-key">desc</span>: <span class="hl-str">"一行簡短的功能介紹說明"</span>,
+  <span class="hl-key">category</span>: <span class="hl-str">"分類名稱"</span>, 
+  <span class="hl-key">color</span>: <span class="hl-str">"#4F46E5"</span> <span class="hl-cmt">// 卡片流光自訂顏色</span>
+}</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            替換引號內文字為您想要的工具資訊，存檔後在瀏覽器中<strong>重新整理</strong>即可生效。
+          </div>
+        </div>
+      </div>
+
+      <!-- Delete -->
+      <div class="tut-section">
+        <div class="tut-section-title">🗑️ 刪除或調整順序</div>
+        <div class="step">
+          <div class="step-num">①</div>
+          <div class="step-body">
+            <strong>刪除：</strong> 尋找特定的 <code>{ ... }</code> 物件，將其完整選取並刪除即可。
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">②</div>
+          <div class="step-body">
+            <strong>排序：</strong> 透過「剪下/貼上」整組 <code>{ ... }</code> 物件，即可直接調整工具在網頁上的排列順序。
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Description -->
+      <div class="tut-section">
+        <div class="tut-section-title">🏷️ 分類設定說明</div>
+        <p style="font-size:0.85rem; color:var(--muted)">系統會自動偵測 <code>category</code> 欄位，只要您填入了全新名稱（例如 <code>"翻譯"</code>），篩選列將自動顯示該標籤，無需手動修改 HTML 排版。</p>
+        <table class="cat-table">
+          <thead>
+            <tr>
+              <th>推薦分類名稱 (category)</th>
+              <th>適合填入的工具類型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="cat-badge">對話</span></td>
+              <td>如 ChatGPT、Claude、DeepSeek、豆包</td>
+            </tr>
+            <tr>
+              <td><span class="cat-badge">搜尋</span></td>
+              <td>如 Perplexity、Kimi 智能助手、秘塔 AI 搜索</td>
+            </tr>
+            <tr>
+              <td><span class="cat-badge">圖像</span></td>
+              <td>如 Midjourney、即夢 AI、DALL·E 3</td>
+            </tr>
+            <tr>
+              <td><span class="cat-badge">影片</span></td>
+              <td>如 Sora、Runway、可靈 AI</td>
+            </tr>
+            <tr>
+              <td><span class="cat-badge">寫作</span></td>
+              <td>如 Notion AI、Gamma 簡報、美圖設計室</td>
+            </tr>
+            <tr>
+              <td><span class="cat-badge">程式</span></td>
+              <td>如 GitHub Copilot、Cursor</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  共 <span id="total"></span> 個 AI 工具 &nbsp;·&nbsp; 本地客製無廣告輕量工具集
+</footer>
+
+<script>
+  let currentCategory = "全部";
+  let searchKeyword = "";
+  let pinnedTools = JSON.parse(localStorage.getItem("pinned_ai_tools") || "[]");
+
+  const filterBar = document.getElementById("filterBar");
+  const mainGrid = document.getElementById("mainGrid");
+  const pinnedGrid = document.getElementById("pinnedGrid");
+  const pinnedSection = document.getElementById("pinnedSection");
+  const searchInput = document.getElementById("searchInput");
+  const mainGridTitle = document.getElementById("mainGridTitle");
+
+  // 初始化與生成分類按鈕
+  function renderFilterBar() {
+    filterBar.innerHTML = "";
+    
+    // 計算各個分類數量
+    const counts = {};
+    AI_TOOLS.forEach(t => {
+      counts[t.category] = (counts[t.category] || 0) + 1;
+    });
+
+    const categories = ["全部", ...Object.keys(counts)];
+
+    categories.forEach(cat => {
+      const btn = document.createElement("button");
+      btn.className = "filter-btn" + (cat === currentCategory ? " active" : "");
+      
+      const textSpan = document.createElement("span");
+      textSpan.textContent = cat;
+      btn.appendChild(textSpan);
+
+      const countSpan = document.createElement("span");
+      countSpan.className = "filter-count";
+      countSpan.textContent = cat === "全部" ? AI_TOOLS.length : counts[cat];
+      btn.appendChild(countSpan);
+
+      btn.addEventListener("click", () => {
+        currentCategory = cat;
+        document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderAll();
+      });
+      filterBar.appendChild(btn);
+    });
+  }
+
+  // 檢查是否已釘選
+  function isPinned(toolName) {
+    return pinnedTools.includes(toolName);
+  }
+
+  // 切換釘選狀態
+  function togglePin(toolName, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const index = pinnedTools.indexOf(toolName);
+    if (index > -1) {
+      pinnedTools.splice(index, 1);
+    } else {
+      pinnedTools.push(toolName);
+    }
+    localStorage.setItem("pinned_ai_tools", JSON.stringify(pinnedTools));
+    renderAll();
+  }
+
+  // 建立工具卡片元素
+  function createCardElement(tool) {
+    const card = document.createElement("a");
+    card.className = "card";
+    card.href = tool.url;
+    card.target = "_blank";
+    card.rel = "noopener noreferrer";
+    card.style.setProperty("--accent-color", tool.color);
+
+    const isFav = isPinned(tool.name);
+
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="card-name">${tool.name}</span>
+        <span class="card-tag">${tool.category}</span>
+      </div>
+      <div class="card-desc">${tool.desc}</div>
+      <div class="card-footer">
+        <button class="favorite-btn ${isFav ? 'active' : ''}" title="${isFav ? '取消釘選' : '釘選至常用'}" onclick="togglePin('${tool.name}', event)">
+          ${isFav ? '❤️' : '🤍'}
+        </button>
+        <span class="card-arrow">↗</span>
+      </div>
+    `;
+    return card;
+  }
+
+  // 主要繪製卡片方法
+  function renderAll() {
+    // 1. 處理搜尋與分類篩選
+    const filteredList = AI_TOOLS.filter(tool => {
+      const matchCategory = currentCategory === "全部" || tool.category === currentCategory;
+      const matchSearch = tool.name.toLowerCase().includes(searchKeyword.toLowerCase()) || 
+                          tool.desc.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+                          tool.category.toLowerCase().includes(searchKeyword.toLowerCase());
+      return matchCategory && matchSearch;
+    });
+
+    // 2. 繪製所有工具
+    mainGrid.innerHTML = "";
+    if (filteredList.length === 0) {
+      mainGrid.innerHTML = `
+        <div class="no-results">
+          <i>🔍</i>
+          <p>找不到符合「${searchKeyword}」的 AI 工具</p>
+        </div>
+      `;
+    } else {
+      filteredList.forEach(tool => {
+        mainGrid.appendChild(createCardElement(tool));
+      });
+    }
+
+    // 更新標題文字（如果有搜尋或篩選）
+    if (searchKeyword) {
+      mainGridTitle.textContent = `🔍 「${searchKeyword}」的搜尋結果 (${filteredList.length})`;
+    } else if (currentCategory !== "全部") {
+      mainGridTitle.textContent = `✨ ${currentCategory} 類別下的工具 (${filteredList.length})`;
+    } else {
+      mainGridTitle.textContent = "✨ 所有 AI 工具";
+    }
+
+    // 3. 處理「我的釘選常用」
+    pinnedGrid.innerHTML = "";
+    const activePinnedTools = AI_TOOLS.filter(t => isPinned(t.name));
+    
+    if (activePinnedTools.length > 0 && !searchKeyword) {
+      pinnedSection.classList.add("visible");
+      activePinnedTools.forEach(tool => {
+        pinnedGrid.appendChild(createCardElement(tool));
+      });
+    } else {
+      pinnedSection.classList.remove("visible");
+    }
+  }
+
+  // 搜尋監聽
+  searchInput.addEventListener("input", (e) => {
+    searchKeyword = e.target.value.trim();
+    renderAll();
+  });
+
+  // 主題切換 (深色模式/淺色模式)
+  const themeToggle = document.getElementById("themeToggle");
+  const themeIcon = document.getElementById("themeIcon");
+  const themeText = document.getElementById("themeText");
+
+  // 偵測與初始化主題
+  let currentTheme = localStorage.getItem("ai_links_theme") || 
+                     (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("ai_links_theme", theme);
+    if (theme === "dark") {
+      themeIcon.textContent = "☀️";
+      themeText.textContent = "切換淺色";
+    } else {
+      themeIcon.textContent = "🌙";
+      themeText.textContent = "切換深色";
+    }
+  }
+
+  themeToggle.addEventListener("click", () => {
+    const newTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    applyTheme(newTheme);
+  });
+
+  // 浮動視窗控制邏輯
+  const helpBtn = document.getElementById("helpBtn");
+  const modalOverlay = document.getElementById("modalOverlay");
+  const modalClose = document.getElementById("modalClose");
+
+  helpBtn.addEventListener("click", () => {
+    modalOverlay.classList.add("active");
+  });
+
+  modalClose.addEventListener("click", () => {
+    modalOverlay.classList.remove("active");
+  });
+
+  modalOverlay.addEventListener("click", (e) => {
+    if (e.target === modalOverlay) {
+      modalOverlay.classList.remove("active");
+    }
+  });
+
+  // 初始化執行
+  document.getElementById("total").textContent = AI_TOOLS.length;
+  applyTheme(currentTheme);
+  renderFilterBar();
+  renderAll();
+</script>
+</body>
+</html>
