@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雲端相片管理與上傳系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-spin-custom {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 font-sans text-slate-800 antialiased">
+
+    <div class="w-full max-w-lg bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden my-6">
+        <div class="bg-gradient-to-r from-violet-600 to-indigo-600 p-6 text-white text-center relative overflow-hidden">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-lg"></div>
+            <div class="absolute -left-10 -bottom-10 w-36 h-36 bg-violet-500/20 rounded-full blur-xl"></div>
+            
+            <h1 class="text-2xl font-bold tracking-wide relative z-10 flex items-center justify-center gap-2">
+                <span>☁️ 雲端相片上傳系統</span>
+            </h1>
+            <p class="text-violet-100 text-sm mt-1.5 relative z-10">自訂檔名 · 重複偵測 · 雲端備份</p>
+        </div>
+
+        <div class="p-6 space-y-6">
+            <div class="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">1. 設定相片檔名</h3>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1.5 flex justify-between items-center">
+                        <span>自訂相片檔名 <span class="text-rose-500">*</span></span>
+                        <span class="text-xs text-indigo-600" id="filename-preview">預覽：未填寫.jpg</span>
+                    </label>
+                    <input type="text" id="custom-filename" placeholder="請輸入相片名稱" 
+                           class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-base font-medium shadow-sm"
+                           oninput="updateFilenamePreview()">
+                </div>
+
+                <div class="flex items-center gap-3 pt-1">
+                    <input id="upload-location" type="checkbox" 
+                           class="w-4.5 h-4.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer">
+                    <label for="upload-location" class="text-xs font-semibold text-slate-700 cursor-pointer">記錄拍攝當下的 GPS 定位座標</label>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">2. 選擇或拍攝相片 <span class="text-rose-500">*</span></h3>
+                
+                <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden" onchange="processImage(event)">
+                <input type="file" id="gallery-input" accept="image/*" class="hidden" onchange="processImage(event)">
+
+                <div class="grid grid-cols-2 gap-3">
+                    <button type="button" onclick="triggerInput('camera')" 
+                            class="py-3 px-4 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 rounded-xl flex items-center justify-center gap-2 font-semibold text-indigo-700 transition-colors border border-indigo-100 shadow-sm">
+                        <span>📷 即時拍照</span>
+                    </button>
+                    <button type="button" onclick="triggerInput('gallery')" 
+                            class="py-3 px-4 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 rounded-xl flex items-center justify-center gap-2 font-semibold text-slate-700 transition-colors border border-slate-200 shadow-sm">
+                        <span>📁 選擇檔案</span>
+                    </button>
+                </div>
+
+                <div class="border-2 border-dashed border-slate-200 rounded-2xl p-4 bg-slate-50/50 min-h-[180px] flex flex-col items-center justify-center relative overflow-hidden">
+                    <img id="image-preview" class="absolute inset-0 w-full h-full object-cover hidden">
+                    
+                    <div id="preview-overlay" class="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity hidden z-10">
+                        <span class="text-white font-medium bg-black/40 px-4 py-2 rounded-xl text-sm mb-3">點擊重新選取相片</span>
+                        <div class="flex gap-2">
+                            <button onclick="triggerInput('camera')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-md">拍照</button>
+                            <button onclick="triggerInput('gallery')" class="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg shadow-md">相簿</button>
+                        </div>
+                    </div>
+
+                    <div id="upload-prompt" class="text-center space-y-2 py-6">
+                        <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="text-slate-500 text-sm font-medium">尚未選取任何相片</div>
+                    </div>
+                </div>
+
+                <div id="photo-info-panel" class="hidden bg-slate-50 border border-slate-150 rounded-xl p-3 text-xs text-slate-600 space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">相片原始解像度：</span>
+                        <span id="info-resolution" class="font-semibold text-slate-700">讀取中...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">原始相片大小：</span>
+                        <span id="info-original-size" class="font-semibold text-slate-700">讀取中...</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-slate-400">優化上傳大小：</span>
+                        <span id="info-compressed-size" class="font-semibold text-emerald-600">讀取中...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1.5">相片備註 / 說明 <span class="text-slate-400 text-xs">(選填)</span></label>
+                <textarea id="notes" placeholder="請輸入相片描述或備註（選填）..." rows="2" 
+                          class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-base resize-none shadow-sm"></textarea>
+            </div>
+
+            <button onclick="handleCloudUpload(false)" id="btn-upload" 
+                    class="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 active:scale-98 text-white font-bold text-lg rounded-2xl shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2">
+                <span>🚀 儲存並上傳至雲端</span>
+            </button>
+        </div>
+
+        <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 text-center">
+            <p class="text-xs text-slate-400">已同步連線至 Google 雲端系統</p>
+        </div>
+    </div>
+
+    <div id="status-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl transform transition-all scale-95 opacity-0 duration-300" id="modal-content">
+            
+            <div id="modal-loading-icon" class="hidden">
+                <div class="w-16 h-16 border-4 border-slate-100 border-t-indigo-600 rounded-full animate-spin-custom mx-auto mb-4"></div>
+                <h3 class="text-lg font-bold text-slate-800">相片傳送中</h3>
+                <p id="loading-text" class="text-slate-500 text-sm mt-2">正在與雲端硬碟比對檔名並上傳...</p>
+            </div>
+            
+            <div id="modal-confirm-icon" class="hidden">
+                <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">⚠️</div>
+                <h3 class="text-xl font-bold text-slate-800">偵測到重複檔名！</h3>
+                <p class="text-slate-500 text-sm mt-2">
+                    雲端資料夾中已存在名稱為 <span id="duplicate-filename" class="font-bold text-rose-600 break-all"></span> 的檔案。
+                </p>
+                
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                    <button onclick="closeModal()" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors text-sm">
+                        返回修改
+                    </button>
+                    <button onclick="confirmOverwrite()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition-colors text-sm shadow-md shadow-indigo-500/10">
+                        確認覆蓋
+                    </button>
+                </div>
+            </div>
+            
+            <div id="modal-success-icon" class="hidden">
+                <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">✓</div>
+                <h3 class="text-xl font-bold text-slate-800">相片上傳成功！</h3>
+                <p class="text-slate-500 text-sm mt-2" id="success-desc">已成功備份至雲端硬碟並記錄至試算表。</p>
+                <button onclick="closeModal()" class="mt-6 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors shadow-md">確認</button>
+            </div>
+
+            <div id="modal-error-icon" class="hidden">
+                <div class="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">✕</div>
+                <h3 class="text-xl font-bold text-slate-800">提示資訊</h3>
+                <p class="text-slate-500 text-sm mt-2" id="error-desc">請檢查是否有欄位漏填或無選取相片。</p>
+                <button onclick="closeModal()" class="mt-6 w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-xl transition-colors shadow-md">確認</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxMEBvodK7s-ykHM2lqfDSMiaXFifAMzRBCKrsJSTJpjgjtxtm6q4MoicXRldOayaQU/exec";
+        
+        let base64PhotoData = "";
+        let originalFileSize = "";
+        let finalOutputName = "";
+
+        function triggerInput(type) {
+            if (type === 'camera') {
+                document.getElementById('camera-input').click();
+            } else if (type === 'gallery') {
+                document.getElementById('gallery-input').click();
+            }
+        }
+
+        function updateFilenamePreview() {
+            let customName = document.getElementById('custom-filename').value.trim();
+            const previewEl = document.getElementById('filename-preview');
+
+            customName = customName.replace(/[\\\/\:\*\?\"\<\|\>]/g, "");
+
+            if (!customName) {
+                previewEl.innerText = "預覽：未填寫.jpg";
+                previewEl.className = "text-xs text-slate-400";
+                finalOutputName = "";
+                return;
+            }
+
+            finalOutputName = `${customName}.jpg`;
+            previewEl.innerText = `預覽：${finalOutputName}`;
+            previewEl.className = "text-xs text-emerald-600 font-semibold truncate max-w-[200px]";
+        }
+
+        function processImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            originalFileSize = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    
+                    const width = img.naturalWidth;
+                    const height = img.naturalHeight;
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    base64PhotoData = canvas.toDataURL('image/jpeg', 0.85);
+
+                    const stringLength = base64PhotoData.length - 'data:image/jpeg;base64,'.length;
+                    const sizeInBytes = 4 * Math.ceil(stringLength / 3) * 0.5624896334343137;
+                    const compressedSizeMB = (sizeInBytes / (1024 * 1024)).toFixed(2) + " MB";
+
+                    const previewImg = document.getElementById('image-preview');
+                    const uploadPrompt = document.getElementById('upload-prompt');
+                    const overlay = document.getElementById('preview-overlay');
+                    const infoPanel = document.getElementById('photo-info-panel');
+
+                    previewImg.src = base64PhotoData;
+                    previewImg.classList.remove('hidden');
+                    overlay.classList.remove('hidden');
+                    uploadPrompt.classList.add('hidden');
+
+                    document.getElementById('info-resolution').innerText = `${width} x ${height} 像素`;
+                    document.getElementById('info-original-size').innerText = originalFileSize;
+                    document.getElementById('info-compressed-size').innerText = compressedSizeMB;
+                    infoPanel.classList.remove('hidden');
+                    
+                    updateFilenamePreview();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showModal(type, titleText = "", descText = "", customLoadingText = "") {
+            const modal = document.getElementById('status-modal');
+            const content = document.getElementById('modal-content');
+            
+            document.getElementById('modal-loading-icon').classList.add('hidden');
+            document.getElementById('modal-confirm-icon').classList.add('hidden');
+            document.getElementById('modal-success-icon').classList.add('hidden');
+            document.getElementById('modal-error-icon').classList.add('hidden');
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 50);
+
+            if (type === 'loading') {
+                document.getElementById('modal-loading-icon').classList.remove('hidden');
+                document.getElementById('loading-text').innerText = customLoadingText || "正在與雲端硬碟比對檔名並上傳...";
+            } else if (type === 'confirm') {
+                document.getElementById('modal-confirm-icon').classList.remove('hidden');
+                document.getElementById('duplicate-filename').innerText = finalOutputName;
+            } else if (type === 'success') {
+                document.getElementById('modal-success-icon').classList.remove('hidden');
+                if (descText) document.getElementById('success-desc').innerText = descText;
+            } else if (type === 'error') {
+                document.getElementById('modal-error-icon').classList.remove('hidden');
+                document.getElementById('error-desc').innerText = descText;
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('status-modal');
+            const content = document.getElementById('modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        async function handleCloudUpload(overwrite = false) {
+            updateFilenamePreview();
+
+            const customName = document.getElementById('custom-filename').value.trim();
+            const notes = document.getElementById("notes").value.trim();
+            const isLocationChecked = document.getElementById('upload-location').checked;
+
+            if (!customName) { 
+                showModal('error', '', '請填寫您想要儲存的自訂相片檔名！'); 
+                return; 
+            }
+            if (!base64PhotoData) { 
+                showModal('error', '', '請先選取一張需要上傳的相片檔案！'); 
+                return; 
+            }
+
+            let locationData = "未啟用定位";
+            if (isLocationChecked) {
+                showModal('loading', '', '', '正在獲取 GPS 定位座標資訊...');
+                
+                const getLocation = () => {
+                    return new Promise((resolve) => {
+                        if (!navigator.geolocation) {
+                            resolve("瀏覽器不支援定位功能");
+                            return;
+                        }
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                const lat = position.coords.latitude.toFixed(6);
+                                const lng = position.coords.longitude.toFixed(6);
+                                resolve(`${lat}, ${lng}`);
+                            },
+                            (error) => {
+                                resolve("定位失敗: 拒絕授權或無法取得位置");
+                            },
+                            { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+                        );
+                    });
+                };
+                locationData = await getLocation();
+            }
+
+            showModal('loading', '', '', '正在處理高畫質編碼並上傳至雲端...');
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
+            const timeStrForSheet = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+            const cleanBase64 = base64PhotoData.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+
+            const payload = {
+                customName: customName,
+                notes: notes,
+                date: dateStr,
+                time: timeStrForSheet,
+                photo: cleanBase64,
+                fileName: finalOutputName,
+                resolution: document.getElementById('info-resolution').innerText,
+                location: locationData,
+                overwrite: overwrite
+            };
+
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.status === "duplicate") {
+                    showModal('confirm');
+                } else if (result.status === "success") {
+                    const extraMsg = overwrite ? "（舊檔案已成功覆蓋更新）" : "";
+                    showModal('success', '', `相片已成功備份至雲端硬碟並記錄至試算表。${extraMsg}`);
+                    resetForm();
+                } else {
+                    showModal('error', '', '雲端儲存失敗：' + result.message);
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                showModal('error', '', '連線失敗！請檢查您的 Google Apps Script URL 是否部署正確。');
+            }
+        }
+
+        function confirmOverwrite() {
+            handleCloudUpload(true);
+        }
+
+        function resetForm() {
+            base64PhotoData = "";
+            originalFileSize = "";
+            finalOutputName = "";
+            
+            document.getElementById('custom-filename').value = "";
+            document.getElementById('camera-input').value = "";
+            document.getElementById('gallery-input').value = "";
+            document.getElementById('notes').value = "";
+            
+            document.getElementById('image-preview').classList.add('hidden');
+            document.getElementById('image-preview').src = "";
+            document.getElementById('preview-overlay').classList.add('hidden');
+            document.getElementById('upload-prompt').classList.remove('hidden');
+            document.getElementById('photo-info-panel').classList.add('hidden');
+            updateFilenamePreview();
+        }
+    </script>
+</body>
+</html>
