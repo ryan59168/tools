@@ -47,8 +47,8 @@
             <div>
                 <h1 class="text-lg font-bold text-white tracking-wide">HTML 即時渲染與暫存編輯器</h1>
                 <p class="text-xs text-slate-400 flex items-center gap-1">
-                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" id="status-pulse"></span>
-                    <span id="header-status-desc">支援拖曳 HTML 解析、自動版本命名與本地/雲端儲存</span>
+                    <span class="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" id="status-pulse"></span>
+                    <span id="header-status-desc">支援拖曳 HTML 解析、自動版本命名與個人專屬雲端儲存</span>
                 </p>
             </div>
         </div>
@@ -109,7 +109,7 @@
                     spellcheck="false"
                 ></textarea>
 
-                <!-- 拖曳檔案覆蓋層 (Drag & Drop Overlay) -->
+                <!-- 拖曳檔案覆蓋層 (Drag & Drop Overlay) (強制設為 pointer-events-none 避免事件干擾) -->
                 <div id="drag-drop-overlay" class="absolute inset-0 bg-slate-950/90 border-4 border-dashed border-blue-500 rounded-lg m-2 flex flex-col items-center justify-center space-y-3 opacity-0 pointer-events-none transition-all duration-200 z-30">
                     <div class="bg-blue-600/20 p-4 rounded-full text-blue-400 animate-bounce">
                         <i data-lucide="upload-cloud" class="w-10 h-10"></i>
@@ -165,13 +165,37 @@
 
         <div class="flex-1 overflow-y-auto p-5 space-y-6">
             <!-- 連線狀態 -->
-            <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-                <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">儲存媒介狀態</h3>
-                <div class="flex items-center space-x-2">
-                    <span id="cloud-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                    <span id="cloud-connection-status" class="text-sm font-medium text-slate-300">偵測環境中...</span>
+            <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div>
+                    <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">儲存媒介狀態</h3>
+                    <div class="flex items-center space-x-2">
+                        <span id="cloud-indicator" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span id="cloud-connection-status" class="text-sm font-medium text-slate-300">偵測環境中...</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1" id="storage-type-hint">系統正在為您配置最佳儲存路徑。</p>
                 </div>
-                <p class="text-xs text-slate-500 mt-2" id="storage-type-hint">系統正在為您配置最佳儲存路徑。</p>
+                <!-- 個人雲端設定折疊按鈕 -->
+                <button id="toggle-config-btn" class="w-full flex items-center justify-between bg-slate-800 hover:bg-slate-750 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 transition">
+                    <span class="flex items-center space-x-1.5">
+                        <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+                        <span>⚙️ 查看/更換 Firebase 雲端金鑰</span>
+                    </span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" id="config-arrow"></i>
+                </button>
+
+                <!-- 個人雲端設定面板 (預設隱藏) -->
+                <div id="custom-config-panel" class="hidden space-y-2 pt-2 border-t border-slate-850">
+                    <p class="text-[11px] text-slate-400">目前預設使用您的個人 Firebase 雲端。您也可以在下方貼上新的設定區塊：</p>
+                    <textarea id="custom-config-input" class="w-full h-24 bg-slate-950 border border-slate-700 rounded-lg p-2 text-[11px] text-slate-300 code-font focus:outline-none focus:border-indigo-500 resize-none" placeholder='const firebaseConfig = {&#10;  apiKey: "...",&#10;  authDomain: "...",&#10;  projectId: "..."&#10;};'></textarea>
+                    <div class="flex space-x-2">
+                        <button id="save-config-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-1.5 rounded-lg text-xs font-semibold transition">
+                            儲存並連線
+                        </button>
+                        <button id="clear-config-btn" class="bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+                            重設為預設
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- 存檔至本機/雲端 -->
@@ -201,7 +225,7 @@
                 </div>
             </div>
 
-            <!-- 公開分享專區 (僅在線上雲端模式啟用) -->
+            <!-- 公開分享專區 (線上雲端模式啟用) -->
             <div id="share-section" class="p-4 bg-emerald-950/20 border border-emerald-800/40 rounded-xl space-y-3">
                 <h3 class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                     <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
@@ -231,7 +255,7 @@
                 </div>
             </div>
 
-            <!-- 載入分享代碼 (僅在線上雲端模式啟用) -->
+            <!-- 載入分享代碼 (線上雲端模式啟用) -->
             <div id="load-share-section" class="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
                 <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">載入他人分享的作品</h3>
                 <div class="flex gap-2">
@@ -333,7 +357,8 @@
         const confirmModalTitle = document.getElementById('confirm-modal-title');
         const confirmModalDesc = document.getElementById('confirm-modal-desc');
 
-        // 拖曳上傳覆蓋層 elements
+        // 拖曳上傳/容器 elements
+        const editorContainer = document.getElementById('editor-container');
         const dragDropOverlay = document.getElementById('drag-drop-overlay');
 
         // 雲端/本地側邊欄 elements
@@ -358,6 +383,14 @@
         const cancelShareBtn = document.getElementById('cancel-share-btn');
         const shareSection = document.getElementById('share-section');
         const loadShareSection = document.getElementById('load-share-section');
+
+        // 個人雲端自訂金鑰 UI 元素
+        const toggleConfigBtn = document.getElementById('toggle-config-btn');
+        const customConfigPanel = document.getElementById('custom-config-panel');
+        const customConfigInput = document.getElementById('custom-config-input');
+        const saveConfigBtn = document.getElementById('save-config-btn');
+        const clearConfigBtn = document.getElementById('clear-config-btn');
+        const configArrow = document.getElementById('config-arrow');
 
         // ==========================================
         // 核心一：初始化與檔案命名控制
@@ -387,34 +420,42 @@
         }
 
         // ==========================================
-        // 核心二：拖曳 HTML 檔案上傳解析功能 (Drag & Drop)
+        // 核心二：拖曳 HTML 檔案上傳解析功能 (Drag & Drop) - 重構修復版
         // ==========================================
 
-        editorSection.addEventListener('dragenter', (e) => {
+        // 防止瀏覽器預設在頁面中開啟拖曳檔案行為
+        window.addEventListener('dragover', (e) => e.preventDefault(), false);
+        window.addEventListener('drop', (e) => e.preventDefault(), false);
+
+        // 偵測拖曳進入編輯器區塊 (綁定在核心容器上)
+        editorContainer.addEventListener('dragenter', (e) => {
             e.preventDefault();
-            dragDropOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            dragDropOverlay.classList.remove('opacity-0');
             dragDropOverlay.classList.add('opacity-100');
         });
 
-        editorSection.addEventListener('dragover', (e) => {
+        editorContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
         });
 
-        editorSection.addEventListener('dragleave', (e) => {
+        editorContainer.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            dragDropOverlay.classList.add('opacity-0', 'pointer-events-none');
-            dragDropOverlay.classList.remove('opacity-100');
+            // 只有當鼠標真正離開編輯器容器邊界時，才隱藏覆蓋層
+            if (e.relatedTarget === null || !editorContainer.contains(e.relatedTarget)) {
+                dragDropOverlay.classList.add('opacity-0');
+                dragDropOverlay.classList.remove('opacity-100');
+            }
         });
 
-        dragDropOverlay.addEventListener('drop', (e) => {
+        editorContainer.addEventListener('drop', (e) => {
             e.preventDefault();
-            dragDropOverlay.classList.add('opacity-0', 'pointer-events-none');
+            dragDropOverlay.classList.add('opacity-0');
             dragDropOverlay.classList.remove('opacity-100');
 
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const file = files[0];
-                const lowerName = file.name.toLowerCase(); // 轉為小寫做檢查（不區分大小寫）
+                const lowerName = file.name.toLowerCase(); 
                 if (lowerName.endsWith('.html') || lowerName.endsWith('.htm')) {
                     const reader = new FileReader();
                     reader.onload = function(evt) {
@@ -436,13 +477,13 @@
         // ==========================================
 
         // 轉換為本地儲存模式 (LocalStorage Fallback)
-        function switchToLocalMode() {
+        function switchToLocalMode(reason = "無雲端金鑰") {
             isLocalMode = true;
-            cloudIndicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
-            cloudConnectionStatus.textContent = "已偵測本機：啟用本地暫存模式";
+            cloudIndicator.className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+            cloudConnectionStatus.textContent = "已自動轉為本地暫存模式";
             cloudStatusText.textContent = "本機暫存空間";
             sidebarTitleText.textContent = "本機網頁暫存管理";
-            storageTypeHint.textContent = "備份儲存於此瀏覽器中，關閉或重新整理不遺失。";
+            storageTypeHint.textContent = "備份儲存於此瀏覽器中。原因：" + reason;
             
             // 隱藏需要伺服器的「雲端分享」與「載入分享」區塊
             shareSection.classList.add('hidden');
@@ -451,50 +492,123 @@
             fetchUserBackups(); // 載入本地歷史備份
         }
 
+        // 智慧解析金鑰格式 (容許 JSON、JS 宣告等複製格式)
+        function cleanAndParseFirebaseConfig(str) {
+            let clean = str.trim();
+            // 移除可能複製進來的宣告關鍵字
+            clean = clean.replace(/const\s+\w+\s*=\s*/gi, '');
+            clean = clean.replace(/let\s+\w+\s*=\s*/gi, '');
+            clean = clean.replace(/var\s+\w+\s*=\s*/gi, '');
+            clean = clean.replace(/export\s+default\s*/gi, '');
+            // 移除最尾端的逗號或分號
+            clean = clean.replace(/;$/, '');
+
+            try {
+                // 安全透過 Function 執行的沙盒機制解析，這可以容忍未加雙引號的 JS Object 屬性名
+                const fn = new Function(`return ${clean};`);
+                const obj = fn();
+                if (obj && obj.apiKey && obj.projectId) {
+                    return obj;
+                }
+            } catch (e) {
+                // 備用正則提取法
+                try {
+                    const keys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+                    const config = {};
+                    keys.forEach(key => {
+                        const regex = new RegExp(`['"]?${key}['"]?\\s*:\\s*['"]([^'"]+)['"]`);
+                        const match = str.match(regex);
+                        if (match) {
+                            config[key] = match[1];
+                        }
+                    });
+                    if (config.apiKey && config.projectId) {
+                        return config;
+                    }
+                } catch (err) {
+                    console.error("正則解析也失敗: ", err);
+                }
+            }
+            return null;
+        }
+
         const initFirebase = async () => {
             appId = typeof __app_id !== 'undefined' ? __app_id : 'html-realtime-editor';
             
-            // 如果 __firebase_config 變數未定義，說明是用戶本機直接打開，自動切換至 LocalStorage 模式
-            if (typeof __firebase_config === 'undefined' || !__firebase_config) {
-                switchToLocalMode();
-                return;
+            let finalConfig = null;
+
+            // 1. 優先檢查本地瀏覽器是否有手動貼上並儲存的個人自訂雲端金鑰
+            const savedPersonalConfig = localStorage.getItem('personal_firebase_config');
+            if (savedPersonalConfig) {
+                try {
+                    finalConfig = JSON.parse(savedPersonalConfig);
+                    customConfigInput.value = JSON.stringify(finalConfig, null, 2);
+                } catch (e) {
+                    console.error("讀取自訂 Firebase 設定失敗");
+                }
+            }
+
+            // 2. 如果沒有自訂金鑰，直接採用林威志您的「預設硬編碼個人雲端金鑰」(無縫連線！)
+            if (!finalConfig) {
+                finalConfig = {
+                    apiKey: "AIzaSyD8ItxQwp5f5s7cwI-bE9pH1yLl66O8uXA",
+                    authDomain: "my-html-editor-15a7e.firebaseapp.com",
+                    projectId: "my-html-editor-15a7e",
+                    storageBucket: "my-html-editor-15a7e.firebasestorage.app",
+                    messagingSenderId: "1059258243874",
+                    appId: "1:1059258243874:web:869c7b236c73898c43637b",
+                    measurementId: "G-MX0885D70P"
+                };
             }
 
             try {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                const app = initializeApp(firebaseConfig);
+                const app = initializeApp(finalConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // RULE 3 - Auth Before Queries
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
+                // 匿名登入並自訂錯誤捕捉，精確診斷未開啟匿名登入開關的情況
+                await signInAnonymously(auth).catch(err => {
+                    throw new Error("AUTH_DENIED: " + err.message);
+                });
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         currentUser = user;
+                        isLocalMode = false;
                         cloudIndicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse";
-                        cloudConnectionStatus.textContent = `雲端連線成功 (ID: ${user.uid.substring(0, 8)})`;
-                        cloudStatusText.textContent = "我的雲端空間 (已同步)";
-                        sidebarTitleText.textContent = "雲端存檔與備份空間";
-                        storageTypeHint.textContent = "備份儲存於您的匿名雲端空間，可跨裝置同步。";
                         
+                        cloudConnectionStatus.textContent = "已成功連接您的個人雲端資料庫！";
+                        cloudStatusText.textContent = "個人雲端空間";
+                        sidebarTitleText.textContent = "個人 Firebase 雲端空間";
+                        storageTypeHint.textContent = "備份已安全地儲存在林威志您的專屬 Google Firestore 資料庫。";
+                        
+                        // 保留分享與讀取功能
                         shareSection.classList.remove('hidden');
                         loadShareSection.classList.remove('hidden');
-                        
+
                         fetchUserBackups(); // 載入個人的備份列表
                         checkHashAndLoad();
                     } else {
-                        switchToLocalMode();
+                        switchToLocalMode("匿名驗證認證失敗，未取得使用者身分。");
                     }
                 });
 
             } catch (error) {
-                console.warn("無法啟動 Firebase，已自動切換成本地儲存模式：", error);
-                switchToLocalMode();
+                console.error("Firebase 連線詳細錯誤:", error);
+                
+                // 智慧錯誤原因診斷機制
+                let friendlyReason = "連線失敗，請檢查網路。";
+                const errorStr = error.message || "";
+                
+                if (errorStr.includes("AUTH_DENIED") || errorStr.includes("auth/operation-not-allowed")) {
+                    friendlyReason = "🔑 請至 Firebase 後台啟用「匿名登入 (Anonymous Auth)」驗證服務！";
+                } else if (errorStr.includes("permission-denied") || errorStr.includes("database") || errorStr.includes("firestore")) {
+                    friendlyReason = "🗄️ 請確認已至 Firebase 後台建立「Firestore Database」並開啟測試模式權限！";
+                } else {
+                    friendlyReason = "連線失敗：" + errorStr;
+                }
+                
+                switchToLocalMode(friendlyReason);
             }
         };
 
@@ -575,7 +689,7 @@
 
             // 模式 B：雲端資料庫模式 (Private collection)
             if (!currentUser || !db) {
-                showToast("雲端尚未就緒，請稍後重試！", "error");
+                showToast("雲端尚未就緒，請開啟後台相關服務！", "error");
                 return;
             }
             try {
@@ -592,7 +706,7 @@
                 fetchUserBackups();
             } catch (error) {
                 console.error("Save Backup Error:", error);
-                showToast("備份失敗，請檢查網路連線", "error");
+                showToast("備份失敗！請確認已在 Firebase Console 中啟用並建立 Firestore 資料庫", "error");
             }
         }
 
@@ -812,9 +926,8 @@
             // 【安全過濾與解析機制】：避免貼上完整網址時 Firebase 路徑因含有 "//" 而崩潰
             const hashMatch = cleanId.match(/share-([a-zA-Z0-9_-]+)/);
             if (hashMatch) {
-                cleanId = hashMatch[1]; // 提取正確的 ID
+                cleanId = hashMatch[1]; 
             } else if (cleanId.includes('/')) {
-                // 如果包含路徑符號，只拿取最後一個片段，並移除可能附帶的 Query 或 Hash
                 cleanId = cleanId.split('/').pop().split('#')[0].split('?')[0];
             }
 
@@ -843,7 +956,6 @@
         function checkHashAndLoad() {
             const hash = window.location.hash;
             if (hash && hash.includes('share-')) {
-                // 使用正則安全抓取網址 Hash 中的 ID
                 const match = hash.match(/share-([a-zA-Z0-9_-]+)/);
                 const shareId = match ? match[1] : hash.replace('#share-', '');
                 
@@ -1026,6 +1138,57 @@
             cloudSidebar.classList.add('translate-x-full');
         });
 
+        // ==========================================
+        // 核心五：個人 Firebase 雲端設定控制邏輯
+        // ==========================================
+
+        toggleConfigBtn.addEventListener('click', () => {
+            const isHidden = customConfigPanel.classList.contains('hidden');
+            if (isHidden) {
+                customConfigPanel.classList.remove('hidden');
+                configArrow.style.transform = 'rotate(180deg)';
+            } else {
+                customConfigPanel.classList.add('hidden');
+                configArrow.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        saveConfigBtn.addEventListener('click', () => {
+            const rawInput = customConfigInput.value.trim();
+            if (!rawInput) {
+                showToast("請貼上設定內容！", "error");
+                return;
+            }
+
+            const parsedConfig = cleanAndParseFirebaseConfig(rawInput);
+            if (parsedConfig) {
+                // 儲存至本地瀏覽器
+                localStorage.setItem('personal_firebase_config', JSON.stringify(parsedConfig));
+                showToast("設定儲存成功！正在重新連線...");
+                setTimeout(() => {
+                    window.location.reload(); // 重新整理頁面以套用新 Firebase 連線
+                }, 1000);
+            } else {
+                showToast("無法解析設定，請確保複製了完整的 firebaseConfig 欄位！", "error");
+            }
+        });
+
+        clearConfigBtn.addEventListener('click', () => {
+            triggerConfirmModal(
+                "重設個人雲端設定？",
+                "清除您「手動貼上」的金鑰後，網頁將會還原連線至林威志您的預設個人 Firebase 雲端。",
+                "還原預設",
+                () => {
+                    localStorage.removeItem('personal_firebase_config');
+                    customConfigInput.value = "";
+                    showToast("個人雲端金鑰已清除，正在重設...");
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            );
+        });
+
         // 側欄內部動作監聽
         saveBackupBtn.addEventListener('click', saveBackup);
         refreshBackupsBtn.addEventListener('click', fetchUserBackups);
@@ -1085,7 +1248,7 @@
 
         // 初始化載入
         window.addEventListener('DOMContentLoaded', () => {
-            codeEditor.value = ""; // 啟動為空白，移除範例
+            codeEditor.value = ""; // 啟動為空白
             updateFilenameUI(""); 
             updateLineNumbers();
             renderHTML();
