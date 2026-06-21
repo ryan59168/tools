@@ -1,4 +1,4 @@
-{ name: "AI 工具集", url: "AI_SET.html" },
+{ name: "AI 工具集", url: "AI_SET.html" },/d
 { name: "匯率換算", url: "currency.html" },
 { name: "播放器", url: "player.html" },
 { name: "PDF轉影像", url: "pdf_jpg.html" },
