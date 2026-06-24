@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>國道里程位置定位查詢系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <style>
+        /* 國道梅花標誌樣式 */
+        .highway-shield {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 5 C55 10, 80 15, 90 20 C95 40, 90 70, 50 95 C10 70, 5 40, 10 20 C20 15, 45 10, 50 5 Z" fill="white" stroke="%23007A33" stroke-width="8"/><path d="M50 10 C54 14, 76 18, 85 23 C89 41, 85 67, 50 89 C15 67, 11 41, 15 23 C24 18, 46 14, 50 10 Z" fill="%23007A33"/></svg>');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        /* 鎖定視窗高度，避免手機瀏覽器滾動混亂 */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* 自訂 Leaflet 彈出視窗圓角與陰影，同時修復手機版擠壓問題 */
+        .leaflet-popup-content-wrapper {
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.18) !important;
+            padding: 6px !important;
+            min-width: 260px !important;
+            max-width: 300px !important;
+        }
+        
+        .leaflet-popup-content {
+            margin: 8px 10px !important;
+            min-width: 240px !important;
+        }
+        
+        /* 隱藏 Leaflet 預設圖資切換，改用我們自訂的控制面板 */
+        .leaflet-control-layers {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans flex flex-col h-full">
+
+    <header class="bg-emerald-800 text-white shadow-md px-3 py-3 flex justify-between items-center z-30 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 highway-shield flex items-center justify-center">
+                <span class="text-white font-extrabold text-xs">國</span>
+            </div>
+            <div>
+                <h1 class="text-lg md:text-xl font-bold tracking-wider">國道里程位置定位查詢系統</h1>
+                <p class="text-xs text-emerald-200">即時試算表同步 • Google Maps 高清定位</p>
+            </div>
+        </div>
+        
+        <button id="btn-settings" class="bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-lg text-sm transition-all flex items-center space-x-1">
+            <i class="fa-solid fa-gear"></i>
+            <span class="hidden md:inline">資料來源設定</span>
+        </button>
+    </header>
+
+    <div class="flex md:hidden bg-white border-b border-slate-200 text-sm font-medium shrink-0 z-30">
+        <button id="tab-panel" class="flex-1 py-3 text-center border-b-2 border-emerald-600 text-emerald-600 transition-all">
+            <i class="fa-solid fa-list-check mr-1.5"></i>篩選與結果
+        </button>
+        <button id="tab-map" class="flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 transition-all">
+            <i class="fa-solid fa-map-location-dot mr-1.5"></i>地圖定位
+        </button>
+    </div>
+
+    <main class="flex-1 flex flex-row overflow-hidden relative">
+        
+        <section id="sidebar-panel" class="w-full md:w-96 bg-white shadow-xl flex flex-col z-20 overflow-y-auto h-full shrink-0 transition-transform duration-300">
+            <div class="p-5 border-b border-slate-100">
+                <h2 class="text-md font-semibold text-slate-700 mb-4 flex items-center">
+                    <i class="fa-solid fa-magnifying-glass-location text-emerald-600 mr-2"></i> 條件篩選與查詢
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">選擇國道</label>
+                        <select id="select-highway" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
+                            <option value="">載入中...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">行車方向</label>
+                        <select id="select-direction" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm">
+                            <option value="">選擇方向</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1 flex justify-between">
+                            <span>手動輸入里程 (文字/數字)</span>
+                            <span class="text-[10px] text-slate-400">支援：001K+200 或 1.2</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" id="input-mileage" placeholder="例如: 001K+200 或 1.2" class="w-full border border-slate-200 rounded-lg pl-3 pr-10 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm uppercase">
+                            <button id="btn-clear-input" class="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button id="btn-search" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2.5 rounded-lg transition-colors shadow-md flex items-center justify-center space-x-2 text-sm">
+                        <i class="fa-solid fa-location-crosshairs"></i>
+                        <span>立即定位</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 p-5 bg-slate-50/50">
+                <h2 class="text-md font-semibold text-slate-700 mb-4 flex items-center">
+                    <i class="fa-solid fa-circle-info text-blue-600 mr-2"></i> 定位資訊結果
+                </h2>
+
+                <div id="result-placeholder" class="text-center py-8 text-slate-400 text-sm">
+                    <i class="fa-solid fa-map-pin text-3xl mb-2 text-slate-300 block"></i>
+                    請輸入上方里程並點擊「立即定位」
+                </div>
+
+                <div id="result-card" class="hidden space-y-4">
+                    <div id="res-warning-banner" class="hidden bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>無對應里程牌，已定位至最近點</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span id="res-badge-highway" class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded">國道1號</span>
+                                <span id="res-badge-direction" class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded">北上</span>
+                            </div>
+                            <span id="res-similarity" class="text-[10px] text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 hidden">最接近匹配</span>
+                        </div>
+
+                        <div>
+                            <div class="text-xs text-slate-400">查詢里程 / 匹配資料</div>
+                            <div class="text-lg font-bold text-slate-800 mt-0.5 flex justify-between items-center">
+                                <span id="res-mileage-text">001K+200</span>
+                                <span class="text-xs font-normal text-slate-500">數字里程 : <span id="res-mileage-numeric">0</span> M</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 text-sm">
+                            <div>
+                                <div class="text-xs text-slate-400">經度 (Lon)</div>
+                                <div id="res-lon" class="font-mono font-medium text-slate-700">121.727800</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-400">緯度 (Lat)</div>
+                                <div id="res-lat" class="font-mono font-medium text-slate-700">25.114070</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <a id="btn-gmap-dir" target="_blank" class="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-2 rounded-lg text-xs font-medium transition-all shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Google_Maps_icon_%282020%29.svg" class="w-4 h-4" alt="Google Map">
+                            <span>Google 導航</span>
+                        </a>
+                        <a id="btn-gmap-street" target="_blank" class="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 py-2 rounded-lg text-xs font-medium transition-all shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
+                            <i class="fa-solid fa-street-view text-orange-500 text-sm"></i>
+                            <span>實景街景</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-slate-100 text-center text-[11px] text-slate-500 border-t border-slate-200 shrink-0">
+                <div>資料狀態：<span id="data-status" class="text-amber-600 font-semibold">讀取中...</span></div>
+                <div id="data-count" class="text-[10px] text-slate-400 mt-0.5"></div>
+            </div>
+        </section>
+
+        <section id="map-container" class="flex-1 h-full relative z-10 hidden md:block">
+            <div id="map" class="w-full h-full"></div>
+
+            <div class="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-lg border border-slate-200/80 p-1 flex space-x-1">
+                <button id="map-style-street" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all bg-emerald-600 text-white shadow-sm">
+                    <i class="fa-solid fa-map"></i>
+                    <span>一般地圖</span>
+                </button>
+                <button id="map-style-satellite" class="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all text-slate-600 hover:bg-slate-100">
+                    <i class="fa-solid fa-globe"></i>
+                    <span>衛星影像</span>
+                </button>
+            </div>
+        </section>
+        
+    </main>
+
+    <div id="modal-settings" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button id="btn-close-settings" class="absolute right-4 top-4 text-slate-400 hover:text-slate-600 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            
+            <h3 class="text-lg font-bold text-slate-800 mb-2 flex items-center">
+                <i class="fa-solid fa-database text-emerald-600 mr-2"></i> Google Sheets 資料來源設定
+            </h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                預設已自動載入您指定的雲端試算表網址。
+            </p>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Google Sheets CSV 發布網址</label>
+                    <textarea id="input-sheet-url" rows="3" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?output=csv" class="w-full border border-slate-200 rounded-lg p-2.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50"></textarea>
+                </div>
+
+                <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-xs text-emerald-800 space-y-1">
+                    <div class="font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> 請確保試算表包含以下標頭 (大小寫需一致)：</div>
+                    <ul class="list-disc pl-4 space-y-0.5 mt-1 font-mono text-[11px] text-emerald-700">
+                        <li><strong>國道</strong> (例如：國1)</li>
+                        <li><strong>方向</strong> (例如：北上、南下)</li>
+                        <li><strong>里程(文字)</strong> (例如：000K+600)</li>
+                        <li><strong>里程(數字)</strong> (例如：600)</li>
+                        <li><strong>Lon</strong> (例如：121.7315)</li>
+                        <li><strong>Lat</strong> (例如：25.11811)</li>
+                        <li><strong>h</strong> (高度，例如：35.4)</li>
+                    </ul>
+                </div>
+
+                <div class="bg-slate-50 rounded-lg p-3 text-[11px] text-slate-600">
+                    <div class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-circle-question mr-1"></i> 如何取得 CSV 網址？</div>
+                    <ol class="list-decimal pl-4 space-y-1">
+                        <li>在 Google 試算表點選 <strong>「檔案」</strong> > <strong>「分享」</strong> > <strong>「發布到網路」</strong>。</li>
+                        <li>將第一個下拉選單保持「整份文件」（或特定工作表），第二個下拉選單改為 <strong>「逗號分隔值 (.csv)」</strong>。</li>
+                        <li>按「發布」並複製產生的完整連結網址。</li>
+                    </ol>
+                </div>
+
+                <div class="flex space-x-2 pt-2">
+                    <button id="btn-save-settings" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition-colors">
+                        儲存並重新載入
+                    </button>
+                    <button id="btn-reset-settings" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold px-4 py-2 rounded-lg transition-colors">
+                        還原預設網址
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs z-50 flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-info text-blue-400"></i>
+        <span id="toast-message">提示訊息</span>
+    </div>
+
+    <script>
+        // --- 預設 Google Sheets 網址 ---
+        const DEFAULT_SHEETS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQMS43lB2jrarl_3bVpaeA372je9AfYxzLxV-WkBCXUdjLFi3dGA8aafIud0Q0oI6CkufqvBBbI9RXh/pub?output=csv";
+
+        // 台灣本島地圖初始與還原最適邊界 (極限縮小 Padding 以最大化展現台灣本島)
+        const TAIWAN_BOUNDS = [
+            [21.8, 119.8], // 西南端
+            [25.4, 122.2]  // 東北端
+        ];
+
+        // 全域變數
+        let map;
+        let mapMarker = null;
+        let rawData = [];      // 儲存解析後的全部里程資料
+        const LOCAL_STORAGE_KEY = 'highway_query_sheet_url_v3';
+
+        // Google 地圖圖層 (經由 Leaflet 載入)
+        let tileLayerStreet;
+        let tileLayerSatellite;
+        let currentMapStyle = 'street';
+
+        // 啟動載入
+        window.addEventListener('load', () => {
+            initMap();
+            loadSettingsAndData();
+            setupEventListeners();
+            setupResponsiveLayout();
+        });
+
+        // 初始化地圖與設初始視角
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: false,
+                minZoom: 6,
+                maxZoom: 19
+            });
+
+            map.fitBounds(TAIWAN_BOUNDS, {
+                padding: [5, 5]
+            });
+
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
+
+            tileLayerStreet = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                attribution: 'Map data © Google Maps'
+            });
+
+            tileLayerSatellite = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                maxZoom: 20,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                attribution: 'Map data © Google Maps'
+            });
+
+            tileLayerStreet.addTo(map);
+        }
+
+        // 切換地圖底圖
+        function switchMapStyle(style) {
+            if (currentMapStyle === style) return;
+
+            const btnStreet = document.getElementById('map-style-street');
+            const btnSatellite = document.getElementById('map-style-satellite');
+
+            if (style === 'street') {
+                map.removeLayer(tileLayerSatellite);
+                tileLayerStreet.addTo(map);
+                
+                btnStreet.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all bg-emerald-600 text-white shadow-sm";
+                btnSatellite.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all text-slate-600 hover:bg-slate-100";
+            } else {
+                map.removeLayer(tileLayerStreet);
+                tileLayerSatellite.addTo(map);
+
+                btnSatellite.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all bg-emerald-600 text-white shadow-sm";
+                btnStreet.className = "px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1 transition-all text-slate-600 hover:bg-slate-100";
+            }
+
+            currentMapStyle = style;
+        }
+
+        // 載入設定與啟動 CSV 資料讀取
+        function loadSettingsAndData() {
+            let savedUrl = localStorage.getItem(LOCAL_STORAGE_KEY);
+            const inputUrlField = document.getElementById('input-sheet-url');
+            
+            if (!savedUrl) {
+                savedUrl = DEFAULT_SHEETS_URL;
+                localStorage.setItem(LOCAL_STORAGE_KEY, savedUrl);
+            }
+            
+            inputUrlField.value = savedUrl;
+            fetchExternalData(savedUrl);
+        }
+
+        // 從雲端 Google Sheets 獲取 CSV 內容
+        function fetchExternalData(url) {
+            updateDataStatus("正在從 Google Sheets 同步...", "text-amber-500");
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error("網路連線異常，請檢查該試算表是否已被設為發布為 CSV。");
+                    return response.text();
+                })
+                .then(csvText => {
+                    parseCSV(csvText, "雲端試算表");
+                })
+                .catch(err => {
+                    showToast(`同步失敗：${err.message}。將採用預設連結載入。`, "error");
+                    if (url !== DEFAULT_SHEETS_URL) {
+                        fetchExternalData(DEFAULT_SHEETS_URL);
+                    } else {
+                        updateDataStatus("連線錯誤", "text-red-600");
+                    }
+                });
+        }
+
+        // 解析並過濾 CSV 資料
+        function parseCSV(csvText, sourceName) {
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    rawData = results.data;
+                    
+                    if (rawData.length > 0) {
+                        standardizeDataKeys();
+
+                        const requiredFields = ['國道', '方向', '里程(文字)', 'Lon', 'Lat'];
+                        const missing = requiredFields.filter(f => !(f in rawData[0]));
+                        
+                        if (missing.length > 0) {
+                            showToast(`試算表欄位不符，缺少: ${missing.join(', ')}`, "error");
+                            updateDataStatus("資料欄位錯誤", "text-red-600");
+                            return;
+                        }
+
+                        updateDataStatus(`已同步 (${sourceName})`, "text-emerald-600");
+                        document.getElementById('data-count').innerText = `共載入 ${rawData.length} 筆里程座標點`;
+                        
+                        populateDropdowns();
+                        showToast(`成功同步 ${rawData.length} 筆里程座標資料！`, "success");
+                    } else {
+                        showToast("試算表內無有效資料點！", "error");
+                        updateDataStatus("無資料", "text-red-600");
+                    }
+                },
+                error: function(err) {
+                    showToast(`解析 CSV 失敗：${err.message}`, "error");
+                    updateDataStatus("解析失敗", "text-red-600");
+                }
+            });
+        }
+
+        // 欄位容錯映射（支援最新 G 欄小寫 "h" 高度欄位映射）
+        function standardizeDataKeys() {
+            rawData = rawData.map(item => {
+                const newItem = {};
+                for (let key in item) {
+                    if (item[key] === null || item[key] === undefined) continue;
+                    const cleanKey = key.trim();
+                    let targetKey = cleanKey;
+                    
+                    if (cleanKey.toLowerCase() === 'lon' || cleanKey.toLowerCase() === 'lng' || cleanKey === '經度') {
+                        targetKey = 'Lon';
+                    } else if (cleanKey.toLowerCase() === 'lat' || cleanKey === '緯度') {
+                        targetKey = 'Lat';
+                    } else if (cleanKey === '里程文字' || cleanKey === '里程') {
+                        targetKey = '里程(文字)';
+                    } else if (cleanKey === '里程數字' || cleanKey === '里程(數字)') {
+                        targetKey = '里程(數字)';
+                    } else if (cleanKey.toLowerCase() === 'h' || cleanKey === '高度' || cleanKey === '高度(m)' || cleanKey === '高程') {
+                        // 💡 修正點：完美兼容小寫 "h" 標頭，統一映射至內部的 '高度(m)'
+                        targetKey = '高度(m)';
+                    }
+                    newItem[targetKey] = item[key];
+                }
+                return newItem;
+            });
+        }
+
+        // 渲染國道下拉選單選項
+        function populateDropdowns() {
+            const selectHighway = document.getElementById('select-highway');
+            const highways = [...new Set(rawData.map(item => item['國道']))].filter(Boolean);
+            if (highways.length === 0) return;
+
+            selectHighway.innerHTML = highways.map(hw => `<option value="${hw}">${hw}</option>`).join('');
+            updateDirectionDropdown(highways[0]);
+        }
+
+        // 依所選國道動態更新方向選項
+        function updateDirectionDropdown(highway) {
+            const selectDirection = document.getElementById('select-direction');
+            const filteredData = rawData.filter(item => item['國道'] === highway);
+            const directions = [...new Set(filteredData.map(item => item['方向']))].filter(Boolean);
+            
+            selectDirection.innerHTML = directions.map(dir => `<option value="${dir}">${dir}</option>`).join('');
+        }
+
+        // 註冊所有網頁點擊與監聽事件
+        function setupEventListeners() {
+            const selectHighway = document.getElementById('select-highway');
+            const selectDirection = document.getElementById('select-direction');
+            const btnSearch = document.getElementById('btn-search');
+            const btnClearInput = document.getElementById('btn-clear-input');
+            const inputMileage = document.getElementById('input-mileage');
+
+            selectHighway.addEventListener('change', () => {
+                updateDirectionDropdown(selectHighway.value);
+            });
+
+            btnClearInput.addEventListener('click', () => {
+                inputMileage.value = '';
+                inputMileage.focus();
+            });
+
+            btnSearch.addEventListener('click', performQuery);
+
+            inputMileage.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    performQuery();
+                }
+            });
+
+            document.getElementById('map-style-street').addEventListener('click', () => switchMapStyle('street'));
+            document.getElementById('map-style-satellite').addEventListener('click', () => switchMapStyle('satellite'));
+
+            const btnSettings = document.getElementById('btn-settings');
+            const modalSettings = document.getElementById('modal-settings');
+            const btnCloseSettings = document.getElementById('btn-close-settings');
+            const btnSaveSettings = document.getElementById('btn-save-settings');
+            const btnResetSettings = document.getElementById('btn-reset-settings');
+
+            btnSettings.addEventListener('click', () => {
+                modalSettings.classList.remove('hidden');
+            });
+
+            btnCloseSettings.addEventListener('click', () => {
+                modalSettings.classList.add('hidden');
+            });
+
+            btnSaveSettings.addEventListener('click', () => {
+                const url = document.getElementById('input-sheet-url').value.trim();
+                if (!url) {
+                    showToast("請填寫 Google Sheets CSV 發布網址", "error");
+                    return;
+                }
+                if (!url.startsWith("http")) {
+                    showToast("網址格式不正確，必須以 http 開頭", "error");
+                    return;
+                }
+                localStorage.setItem(LOCAL_STORAGE_KEY, url);
+                fetchExternalData(url);
+                modalSettings.classList.add('hidden');
+            });
+
+            btnResetSettings.addEventListener('click', () => {
+                localStorage.setItem(LOCAL_STORAGE_KEY, DEFAULT_SHEETS_URL);
+                document.getElementById('input-sheet-url').value = DEFAULT_SHEETS_URL;
+                fetchExternalData(DEFAULT_SHEETS_URL);
+                modalSettings.classList.add('hidden');
+                showToast("已重置並同步預設國道 CSV 網址", "info");
+            });
+        }
+
+        // 手機版與電腦版版面 RWD 流暢切換
+        function setupResponsiveLayout() {
+            const tabPanel = document.getElementById('tab-panel');
+            const tabMap = document.getElementById('tab-map');
+            const sidebarPanel = document.getElementById('sidebar-panel');
+            const mapContainer = document.getElementById('map-container');
+
+            tabPanel.addEventListener('click', () => {
+                tabPanel.className = "flex-1 py-3 text-center border-b-2 border-emerald-600 text-emerald-600 transition-all font-semibold";
+                tabMap.className = "flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 transition-all";
+                
+                sidebarPanel.classList.remove('hidden');
+                sidebarPanel.classList.add('w-full');
+                mapContainer.classList.add('hidden');
+            });
+
+            tabMap.addEventListener('click', () => {
+                tabMap.className = "flex-1 py-3 text-center border-b-2 border-emerald-600 text-emerald-600 transition-all font-semibold";
+                tabPanel.className = "flex-1 py-3 text-center border-b-2 border-transparent text-slate-500 transition-all";
+                
+                sidebarPanel.classList.add('hidden');
+                mapContainer.classList.remove('hidden');
+                mapContainer.classList.add('w-full');
+                
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            });
+
+            const handleResize = () => {
+                if (window.innerWidth >= 768) {
+                    sidebarPanel.classList.remove('hidden', 'w-full');
+                    sidebarPanel.classList.add('md:w-96');
+                    mapContainer.classList.remove('hidden', 'w-full');
+                    mapContainer.classList.add('md:block');
+                    map.invalidateSize();
+                } else {
+                    if (tabMap.classList.contains('text-emerald-600')) {
+                        sidebarPanel.classList.add('hidden');
+                        mapContainer.classList.remove('hidden');
+                        mapContainer.classList.add('w-full');
+                    } else {
+                        sidebarPanel.classList.remove('hidden');
+                        sidebarPanel.classList.add('w-full');
+                        mapContainer.classList.add('hidden');
+                    }
+                }
+            };
+
+            window.addEventListener('resize', handleResize);
+            handleResize();
+        }
+
+        // 輸入處理
+        function parseMileToNumber(inputStr) {
+            if (typeof inputStr === 'number') return inputStr;
+            if (!inputStr) return NaN;
+
+            const str = String(inputStr).trim().toUpperCase();
+
+            if (str.includes('K') && str.includes('+')) {
+                const parts = str.split('K');
+                const km = parseFloat(parts[0]) || 0;
+                const m = parseFloat(parts[1].replace('+', '')) || 0;
+                return (km * 1000) + m;
+            }
+
+            if (str.includes('K')) {
+                const km = parseFloat(str.replace('K', '')) || 0;
+                return km * 1000;
+            }
+
+            if (str.includes('.')) {
+                const km = parseFloat(str) || 0;
+                return km * 1000;
+            }
+
+            const num = parseFloat(str);
+            if (!isNaN(num)) {
+                if (num < 1000) return num * 1000;
+                return num;
+            }
+
+            return NaN;
+        }
+
+        // 里程查詢匹配定位主程式
+        function performQuery() {
+            const highway = document.getElementById('select-highway').value;
+            const direction = document.getElementById('select-direction').value;
+            const mileageInputRaw = document.getElementById('input-mileage').value.trim();
+
+            if (!highway || !direction) {
+                showToast("請選擇國道與行車方向", "error");
+                return;
+            }
+
+            if (!mileageInputRaw) {
+                showToast("請手動輸入里程位置", "error");
+                return;
+            }
+
+            const targetMeters = parseMileToNumber(mileageInputRaw);
+            if (isNaN(targetMeters)) {
+                showToast("里程格式無法識別，請輸入如：001K+200 或 1.2", "error");
+                return;
+            }
+
+            const candidates = rawData.filter(item => 
+                item['國道'] === highway && 
+                item['方向'] === direction
+            );
+
+            if (candidates.length === 0) {
+                showToast(`找不到此國道(${highway})${direction}的任何里程資料。`, "error");
+                return;
+            }
+
+            let bestMatch = null;
+            let minDiff = Infinity;
+            let isExact = false;
+
+            candidates.forEach(item => {
+                let itemMeters = NaN;
+                if (item['里程(數字)'] !== undefined && item['里程(數字)'] !== '') {
+                    itemMeters = parseFloat(item['里程(數字)']);
+                } else {
+                    itemMeters = parseMileToNumber(item['里程(文字)']);
+                }
+
+                if (isNaN(itemMeters)) return;
+
+                const diff = Math.abs(itemMeters - targetMeters);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    bestMatch = item;
+                    if (diff === 0) isExact = true;
+                }
+            });
+
+            if (!bestMatch) {
+                showToast("查無對應的里程座標位置", "error");
+                return;
+            }
+
+            const lat = parseFloat(bestMatch['Lat']);
+            const lon = parseFloat(bestMatch['Lon']);
+
+            if (isNaN(lat) || isNaN(lon)) {
+                showToast("此定位點的經緯度資料異常", "error");
+                return;
+            }
+
+            renderResult(bestMatch, isExact, targetMeters);
+
+            if (window.innerWidth < 768) {
+                document.getElementById('tab-map').click();
+                setTimeout(() => {
+                    updateMapMarker(lat, lon, bestMatch, isExact);
+                }, 180); 
+            } else {
+                updateMapMarker(lat, lon, bestMatch, isExact);
+            }
+        }
+
+        // 渲染定位資訊卡片
+        function renderResult(item, isExact, targetMeters) {
+            document.getElementById('result-placeholder').classList.add('hidden');
+            const card = document.getElementById('result-card');
+            card.classList.remove('hidden');
+
+            document.getElementById('res-badge-highway').innerText = item['國道'];
+            document.getElementById('res-badge-direction').innerText = item['方向'];
+            
+            const matchText = item['里程(文字)'];
+            const numericText = (item['里程(數字)'] !== undefined && item['里程(數字)'] !== null) ? item['里程(數字)'] : '無';
+            document.getElementById('res-mileage-text').innerText = matchText;
+            document.getElementById('res-mileage-numeric').innerText = numericText;
+            
+            const lonVal = parseFloat(item['Lon']);
+            const latVal = parseFloat(item['Lat']);
+            const formattedLon = isNaN(lonVal) ? item['Lon'] : lonVal.toFixed(6);
+            const formattedLat = isNaN(latVal) ? item['Lat'] : latVal.toFixed(6);
+
+            document.getElementById('res-lon').innerText = formattedLon;
+            document.getElementById('res-lat').innerText = formattedLat;
+
+            const similarityBadge = document.getElementById('res-similarity');
+            const warningBanner = document.getElementById('res-warning-banner');
+
+            if (!isExact) {
+                similarityBadge.innerText = `最接近匹配 (差距 ${Math.abs(parseMileToNumber(matchText) - targetMeters)}m)`;
+                similarityBadge.classList.remove('hidden');
+                warningBanner.classList.remove('hidden');
+            } else {
+                similarityBadge.classList.add('hidden');
+                warningBanner.classList.add('hidden');
+            }
+            
+            // 💡 修正外部 Google Maps 呼叫網址樣版字串
+            document.getElementById('btn-gmap-dir').href = `https://www.google.com/maps/search/?api=1&query=${formattedLat},${formattedLon}`;
+            document.getElementById('btn-gmap-street').href = `https://www.google.com/maps/@?api=1&map_action=panorama&viewpoint=${formattedLat},${formattedLon}`;
+        }
+
+        // 更新與自訂地圖展點資訊面板（加入h欄高度，六位精準度）
+        function updateMapMarker(lat, lon, item, isExact) {
+            if (mapMarker) {
+                map.removeLayer(mapMarker);
+            }
+
+            map.setView([lat, lon], 16);
+
+            const offsetY = -map.getSize().y * 0.2;
+            map.panBy([0, offsetY], { animate: false });
+
+            const googlePinIcon = L.divIcon({
+                className: 'custom-google-pin',
+                html: `<div class="relative w-9 h-11 flex items-center justify-center filter drop-shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 30" width="36" height="45">
+                            <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 18 12 18s12-9 12-18c0-6.63-5.37-12-12-12z" fill="#ea4335"/>
+                            <circle cx="12" cy="12" r="5" fill="#a51d12"/>
+                        </svg>
+                       </div>`,
+                iconSize: [36, 45],
+                iconAnchor: [18, 45], 
+                popupAnchor: [0, -38]
+            });
+
+            const warningAlertHTML = isExact ? '' : `
+                <div class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 mb-2.5">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>無對應里程牌，定位至最近點</span>
+                </div>
+            `;
+
+            const formattedLon = typeof lon === 'number' ? lon.toFixed(6) : parseFloat(lon).toFixed(6);
+            const formattedLat = typeof lat === 'number' ? lat.toFixed(6) : parseFloat(lat).toFixed(6);
+
+            // 💡 讀取已經映射成功的 '高度(m)' 資料（對應 G 欄標題為 "h" 的內容）
+            const heightHTML = (item['高度(m)'] !== undefined && item['高度(m)'] !== null && item['高度(m)'] !== '') 
+                ? `<div>高程: <span class="font-mono">${item['高度(m)']} m</span></div>` 
+                : '';
+
+            const popupContent = `
+                <div class="flex flex-col select-none" style="font-family: system-ui, -apple-system, sans-serif;">
+                    ${warningAlertHTML}
+
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="bg-emerald-600 text-white text-[11px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <i class="fa-solid fa-road text-[9px]"></i>${item['國道'].replace('國', '')}
+                        </span>
+                        <span class="text-slate-800 font-bold text-sm">${item['方向']} • ${item['里程(文字)']}</span>
+                    </div>
+
+                    <div class="text-sm text-slate-600 space-y-1 mb-3 leading-relaxed">
+                        <div>經度: <span class="font-mono">${formattedLon}</span></div>
+                        <div>緯度: <span class="font-mono">${formattedLat}</span></div>
+                        ${heightHTML}
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-2 flex justify-between">
+                        <a href="https://www.google.com/maps/search/?api=1&query=${formattedLat},${formattedLon}" target="_blank" class="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1">
+                            開啟導航 <i class="fa-solid fa-location-arrow text-[10px]"></i>
+                        </a>
+                        <a href="https://www.google.com/maps/@?api=1&map_action=panorama&viewpoint=${formattedLat},${formattedLon}" target="_blank" class="text-xs text-orange-500 font-bold hover:underline flex items-center gap-1">
+                            街景服務 <i class="fa-solid fa-street-view text-[10px]"></i>
+                        </a>
+                    </div>
+                </div>
+            `;
+
+            mapMarker = L.marker([lat, lon], { icon: googlePinIcon }).addTo(map);
+            mapMarker.bindPopup(popupContent, { autoPan: false }).openPopup();
+        }
+
+        // 更新資料讀取狀態 UI
+        function updateDataStatus(text, colorClass) {
+            const statusEl = document.getElementById('data-status');
+            statusEl.innerText = text;
+            statusEl.className = `${colorClass} font-semibold`;
+        }
+
+        // 自訂 Toast 彈窗提示
+        function showToast(message, type = "info") {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            const msgEl = document.getElementById('toast-message');
+
+            msgEl.innerText = message;
+
+            if (type === "success") {
+                icon.className = "fa-solid fa-circle-check text-emerald-400";
+            } else if (type === "error") {
+                icon.className = "fa-solid fa-circle-exclamation text-rose-400";
+            } else {
+                icon.className = "fa-solid fa-circle-info text-sky-400";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            toast.classList.add('opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
