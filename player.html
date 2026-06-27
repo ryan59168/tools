@@ -61,7 +61,8 @@
 
         #bottom-controls {
             position: fixed;
-            bottom: 10px; left: 50%;
+            bottom: var(--controls-bottom, 10px);
+            left: var(--controls-left, 50%);
             transform: translateX(-50%);
             width: 90%; max-width: 900px;
             background: var(--panel-bg);
@@ -74,8 +75,11 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.3);
             border: 1px solid rgba(255,255,255,0.08);
             z-index: 1000;
+            cursor: grab;
+            touch-action: none;
         }
 
+        #bottom-controls.dragging { cursor: grabbing; transition: opacity 0.3s ease, visibility 0.3s ease; }
         body.show-ui #bottom-controls { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
         .progress-wrapper { display: flex; align-items: center; gap: 15px; }
         #progressRange { flex-grow: 1; height: 5px; cursor: pointer; accent-color: var(--accent-color); }
@@ -203,10 +207,13 @@
         const btnToggleUI = document.getElementById('btnToggleUI');
         const iconToggleUI = document.getElementById('iconToggleUI');
         const btnFloatingToggle = document.getElementById('btn-floating-toggle');
+        const bottomControls = document.getElementById('bottom-controls');
 
         let scale = 1, px = 0, py = 0, rotation = 0, isDrag = false, sx, sy, moveCount = 0;
         let longPressTimer, rewindInterval, isLongPress = false;
         let isSeek = false, startX, startY, userMutedState = false;
+        let activePointerId = null, longPressSide = null, savedPlaybackRate = 1, wasPlayingBeforeLongPress = false;
+        let isControlsDrag = false, controlsDragStartX = 0, controlsDragStartY = 0, controlsStartLeft = 0, controlsStartBottom = 0;
         
         // 用於安全處理 HTML5 Video 播放與暫停非同步行為的變數
         let playPromise = null;
@@ -307,53 +314,125 @@
             }
         }
 
-        container.addEventListener('mousedown', (e) => {
+        function beginLongPress(side) {
+            isLongPress = true;
+            longPressSide = side;
+            savedPlaybackRate = v.playbackRate || 1;
+            wasPlayingBeforeLongPress = !v.paused;
+            userMutedState = v.muted;
+            indicatorIcon.textContent = side === 'left' ? 'fast_rewind' : 'fast_forward';
+            indicatorText.textContent = side === 'left' ? '2X 快退' : '2X 快進';
+            indicator.style.display = 'flex';
+
+            if (side === 'left') {
+                safePause();
+                rewindInterval = setInterval(() => {
+                    v.currentTime = Math.max(0, v.currentTime - 0.1);
+                    progress.value = (v.currentTime / v.duration) * 100 || 0;
+                    curTime.textContent = fmt(v.currentTime);
+                }, 50);
+            } else {
+                v.playbackRate = 2.0;
+                if (v.paused) safePlay();
+                iconPlay.textContent = 'pause';
+            }
+        }
+
+        function endLongPress() {
+            clearTimeout(longPressTimer);
+            clearInterval(rewindInterval);
+            if (isLongPress) {
+                v.playbackRate = savedPlaybackRate;
+                v.muted = userMutedState;
+                indicator.style.display = 'none';
+                if (longPressSide === 'left' && wasPlayingBeforeLongPress && v.readyState >= 2) safePlay();
+                if (!wasPlayingBeforeLongPress && !v.paused) safePause();
+                iconPlay.textContent = v.paused ? 'play_arrow' : 'pause';
+                updateVolumeUI();
+            }
+            longPressSide = null;
+            setTimeout(() => { isLongPress = false; }, 50);
+        }
+
+        container.addEventListener('pointerdown', (e) => {
+            if (activePointerId !== null || e.target.closest('#bottom-controls, #btn-floating-toggle')) return;
+            activePointerId = e.pointerId;
             moveCount = 0; isLongPress = false;
             startX = e.clientX; startY = e.clientY;
             const rect = container.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
-            if (v.style.display !== 'none' && !v.paused) {
-                userMutedState = v.muted;
-                if (clickX < rect.width * 0.15) {
-                    longPressTimer = setTimeout(() => {
-                        isLongPress = true; 
-                        safePause();
-                        indicatorIcon.textContent = "fast_rewind"; indicatorText.textContent = "快速倒退中";
-                        indicator.style.display = "flex";
-                        rewindInterval = setInterval(() => { v.currentTime -= 0.1; }, 50);
-                    }, 300);
-                } else if (clickX > rect.width * 0.85) {
-                    longPressTimer = setTimeout(() => {
-                        isLongPress = true; v.playbackRate = 2.0;
-                        indicatorIcon.textContent = "fast_forward"; indicatorText.textContent = "2X 快速播放中";
-                        indicator.style.display = "flex";
-                    }, 300);
-                }
+            const side = clickX < rect.width / 2 ? 'left' : 'right';
+
+            if (v.style.display !== 'none') {
+                longPressTimer = setTimeout(() => beginLongPress(side), 300);
             }
             if(scale > 1) { isDrag = true; sx = e.clientX - px; sy = e.clientY - py; }
+            container.setPointerCapture?.(e.pointerId);
         });
 
-        window.addEventListener('mouseup', () => {
-            clearTimeout(longPressTimer);
-            clearInterval(rewindInterval);
-            if (isLongPress) {
-                v.playbackRate = 1.0;
-                v.muted = userMutedState;
-                indicator.style.display = "none";
-                if (v.paused && v.readyState >= 2) safePlay();
-                iconPlay.textContent = 'pause';
-                updateVolumeUI();
-            }
+        window.addEventListener('pointerup', (e) => {
+            if (activePointerId !== null && e.pointerId !== activePointerId) return;
+            endLongPress();
             isDrag = false;
-            setTimeout(() => { isLongPress = false; }, 50);
+            activePointerId = null;
         });
 
-        window.addEventListener('mousemove', (e) => {
+        window.addEventListener('pointercancel', (e) => {
+            if (activePointerId !== null && e.pointerId !== activePointerId) return;
+            endLongPress();
+            isDrag = false;
+            activePointerId = null;
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (activePointerId !== null && e.pointerId !== activePointerId) return;
             moveCount++;
             const dist = Math.sqrt(Math.pow(e.clientX - startX, 2) + Math.pow(e.clientY - startY, 2));
             if (dist > 10) clearTimeout(longPressTimer);
             if(isDrag) { px = e.clientX - sx; py = e.clientY - sy; update(); }
         });
+
+        function clampControlsPosition(left, bottom) {
+            const rect = bottomControls.getBoundingClientRect();
+            const halfWidth = rect.width / 2;
+            return {
+                left: Math.min(Math.max(left, halfWidth), window.innerWidth - halfWidth),
+                bottom: Math.min(Math.max(bottom, 8), window.innerHeight - rect.height - 8)
+            };
+        }
+
+        bottomControls.addEventListener('pointerdown', (e) => {
+            if (e.target.closest('button, input')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = bottomControls.getBoundingClientRect();
+            isControlsDrag = true;
+            controlsDragStartX = e.clientX;
+            controlsDragStartY = e.clientY;
+            controlsStartLeft = rect.left + rect.width / 2;
+            controlsStartBottom = window.innerHeight - rect.bottom;
+            bottomControls.classList.add('dragging');
+            bottomControls.setPointerCapture?.(e.pointerId);
+        });
+
+        bottomControls.addEventListener('pointermove', (e) => {
+            if (!isControlsDrag) return;
+            e.preventDefault();
+            const next = clampControlsPosition(
+                controlsStartLeft + e.clientX - controlsDragStartX,
+                controlsStartBottom - (e.clientY - controlsDragStartY)
+            );
+            bottomControls.style.setProperty('--controls-left', `${next.left}px`);
+            bottomControls.style.setProperty('--controls-bottom', `${next.bottom}px`);
+        });
+
+        function endControlsDrag() {
+            isControlsDrag = false;
+            bottomControls.classList.remove('dragging');
+        }
+
+        bottomControls.addEventListener('pointerup', endControlsDrag);
+        bottomControls.addEventListener('pointercancel', endControlsDrag);
 
         container.addEventListener('click', () => { 
             if (!isLongPress && moveCount < 5 && v.style.display !== 'none') togglePlay(); 
@@ -460,6 +539,11 @@
         window.addEventListener('resize', () => {
             containerW = container.clientWidth;
             containerH = container.clientHeight;
+            const rect = bottomControls.getBoundingClientRect();
+            const currentBottom = window.innerHeight - rect.bottom;
+            const next = clampControlsPosition(rect.left + rect.width / 2, currentBottom);
+            bottomControls.style.setProperty('--controls-left', `${next.left}px`);
+            bottomControls.style.setProperty('--controls-bottom', `${next.bottom}px`);
             update();
         });
     </script>
